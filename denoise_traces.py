@@ -1,6 +1,7 @@
 import numpy
 from tensorflow import keras
 import matplotlib.pyplot
+import keras.utils
 
 datapath = "./data/"
 
@@ -20,26 +21,27 @@ yx_projections_sgnl = numpy.load(datapath + "data_signal_yx.npy")
 zy_projections = numpy.pad( zy_projections, ((0,0), (2,0), (0,0)), 'constant', constant_values=0 )
 zy_projections_sgnl = numpy.pad( zy_projections_sgnl, ((0,0), (2,0), (0,0)), 'constant', constant_values=0 )
 
-
-model = keras.Sequential([	keras.layers.Conv2D(input_shape = (*zy_projections[0].shape, 1), padding="same", strides=1, kernel_size=6, filters=16, activation="relu"),
+'''
+model = keras.Sequential([	keras.layers.Conv2D(input_shape = (*zy_projections[0].shape, 1), padding="same", strides=1, kernel_size=6, filters=24, activation="relu"),
 							keras.layers.MaxPool2D(pool_size = (2,2)),
 							#keras.layers.Conv2D(padding="same", strides=2, kernel_size=3, filters=4, activation="relu"),
-							keras.layers.Conv2D(padding="same", strides=1, kernel_size=4, filters=32, activation="relu"),
+							keras.layers.Conv2D(padding="same", strides=1, kernel_size=4, filters=64, activation="relu"),
 							#keras.layers.MaxPool2D(pool_size = (2,2)),
 							#keras.layers.Conv2D(padding="same", strides=1, kernel_size=3, filters=16, activation="relu"),
 							#keras.layers.UpSampling2D(size = (2,2)),
 							#keras.layers.Conv2D(padding="same", strides=1, kernel_size=4, filters=8, activation="relu"),
 							keras.layers.UpSampling2D(size = (2,2)),
-							keras.layers.Conv2D(padding="same", strides=1, kernel_size=6, filters=16, activation="relu"),
+							keras.layers.Conv2D(padding="same", strides=1, kernel_size=6, filters=24, activation="relu"),
 							keras.layers.Dense(units=1, activation="sigmoid") ])
 
 model.compile(optimizer="adam", loss="binary_crossentropy")
 model.summary()
-model.fit(x = zy_projections[:5000], y = zy_projections_sgnl[:5000], shuffle=True, epochs=15, validation_data=(zy_projections[9000:10000], zy_projections_sgnl[9000:10000]))
+model.fit(x = zy_projections[:5000], y = zy_projections_sgnl[:5000], shuffle=True, epochs=30, validation_data=(zy_projections[9000:10000], zy_projections_sgnl[9000:10000]))
 
 model.save("./model_denoise")
-
-#model = keras.models.load_model("./model_denoise")
+'''
+model = keras.models.load_model("./model_denoise")
+keras.utils.plot_model(model, to_file='model_architecture.png', show_shapes=True, show_layer_names=False, show_layer_activations=True)
 
 for _ in range(10):
 	j = numpy.random.randint(5000,5500)
