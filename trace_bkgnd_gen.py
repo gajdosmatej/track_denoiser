@@ -2,28 +2,34 @@ import numpy
 import matplotlib.pyplot
 
 datapath = "./data/"
-dim_X, dim_Y, dim_Z = 12, 10, 200
-direction_norms = numpy.array([0.4,0.4,1.2])	#factors which multiply each coordinate of direction unit vector (main aim is to increase velocity in Z direction in order to compensate dim_Z >> dim_X, dim_Y)
-signal_energy = 1
-noise_energy = 3
-energy_deposition_coeff = 0.3
-signal_change_direction_probability = 0.8
-noise_change_direction_probability = 0.8
-noise_tracks_num_range = (8,16)
+dim_X, dim_Y, dim_Z = 12, 10, 200	#dimensions of discretised space
+direction_norms = numpy.array([0.6,0.6,0.9])	#factors which multiply each coordinate of direction unit vector (main aim is to increase velocity in Z direction in order to compensate dim_Z >> dim_X, dim_Y)
+signal_energy = 2	#signal deposits this value in every point of lattice which it visits
+noise_energy = 2	#the total sum of values that noise can deposit in visited points of lattice
+energy_deposition_coeff = 0.2	#the coefficient of the exponential distribution, which noise samples a random value from and deposits it in the visited point of lattice
+curvature_sigma = 0.1	#sigma of normal distribution, which updateDirection samples R3 vector from
+signal_change_direction_probability = 0.8	#the signal probability that updateDirection is called in a step
+noise_change_direction_probability = 0.8	#the noise probability that updateDirection is called in a step
+noise_tracks_num_range = (15,20)	#the minimal and maximal number of noise tracks
 
 def updateDirection(direction :numpy.ndarray):
 	'''Randomly updates the direction vector.'''
-	direction += numpy.random.normal(loc=0, scale=0.3)
+	direction += numpy.random.normal(loc=0, scale=curvature_sigma)
 	direction /= numpy.linalg.norm(direction)
 	direction *= direction_norms
 
+def discretise(coord):
+	return (round(coord[0]), round(coord[1]), round(coord[2]))
+
+def isCoordOutOfBounds(coord):
+	return ( coord[0] < 0 or coord[1] < 0 or coord[2] < 0 or coord[0] >= dim_X-0.5 or coord[1] >= dim_Y-0.5 or coord[2] >= dim_Z-0.5)	#coord[i] >= dim_i - 0.5	iff 	round(coord[i]) >= dim_i 
 
 def addSignal(space :numpy.ndarray):
 	'''Adds one signal track into the input 3D array space.'''
 	position = (dim_X/2, dim_Y/2, dim_Z/2)	#the track begins in the middle of the space
 	direction = numpy.random.uniform( low = (-1)*direction_norms, high = direction_norms, size=3)	#random moving direction
-	while 0 <= round(position[0]) < dim_X and 0 <= round(position[1]) < dim_Y and 0 <= round(position[2]) < dim_Z:	#the track propagades until it moves out of the space boundaries
-		space[round(position[0]), round(position[1]), round(position[2])] = signal_energy
+	while not isCoordOutOfBounds(position):	#the track propagades until it moves out of the space boundaries
+		space[discretise(position)] = signal_energy
 		if numpy.random.random() < signal_change_direction_probability:	updateDirection(direction)
 		position += direction
 
@@ -56,10 +62,10 @@ def addNoise(space :numpy.ndarray):
 			direction = numpy.array([0.,0.,-direction_norms[2]])
 		while energy > 0:	#the particle moves until it loses all the energy or it moves out of the space
 			energy -= numpy.random.exponential( energy_deposition_coeff )
-			space[round(position[0]), round(position[1]), round(position[2])] = energy
+			space[discretise(position)] += energy
 			if numpy.random.random() < noise_change_direction_probability:	updateDirection(direction)
 			position += direction
-			if round(position[0]) >= dim_X or round(position[1]) >= dim_Y or round(position[2]) >= dim_Z or round(position[0]) < 0 or round(position[1]) < 0 or round(position[2]) < 0:	break
+			if isCoordOutOfBounds(position):	break
 
 
 def show3D(space :numpy.ndarray):
@@ -73,22 +79,27 @@ def show3D(space :numpy.ndarray):
 	ax.set_zlim(0,dim_Z)
 	matplotlib.pyplot.show()
 
+def getProjection(space :numpy.ndarray, axis :int):
+	return numpy.sum(space, axis)
+
 def showProjections(space :numpy.ndarray):
 	'''Shows plots of the space projections into the xy, yz and zx planes.'''
 	fig, ax = matplotlib.pyplot.subplots(1,3)
-	ax[0].imshow(numpy.sum(space, axis=0), cmap='gray')
+	ax[0].imshow(getProjection(space, 0), cmap='gray', vmin=0)
 	ax[0].set_xlabel("z")
 	ax[0].set_ylabel("y")
-	ax[1].imshow(numpy.sum(space, axis=1), cmap='gray')
+	ax[1].imshow(getProjection(space, 1), cmap='gray', vmin=0)
 	ax[1].set_xlabel("z")
 	ax[1].set_ylabel("x")
-	ax[2].imshow(numpy.sum(space, axis=2), cmap='gray')
+	ax[2].imshow(getProjection(space, 2), cmap='gray', vmin=0)
 	ax[2].set_xlabel("y")
 	ax[2].set_ylabel("x")
 	matplotlib.pyplot.show()
 
-def getProjection(space :numpy.ndarray, axis :int):
-	return numpy.sum(space, axis)
+def showProjection(space :numpy.ndarray, axis :int):
+	fig, ax = matplotlib.pyplot.subplots(1)
+	ax.imshow( getProjection(space, axis), cmap='gray', vmin=0)
+	matplotlib.pyplot.show()
 
 def genAndDumpData(iterations :int):
 	'''Generates space 3D array with one signal and several noises in each iteration and saves the projections of the clean and noised data.'''
@@ -148,12 +159,13 @@ def showRandomData():
 		ax[2,1].set_ylabel("x")
 		matplotlib.pyplot.show()
 
+
 #genAndDumpData(20000)
-showRandomData()
+#showRandomData()
 '''
 space = numpy.zeros( (dim_X, dim_Y, dim_Z) )
 addSignal(space)
 addNoise(space)
 show3D(space)
+showProjections(space)
 '''
-#showProjections(space)
