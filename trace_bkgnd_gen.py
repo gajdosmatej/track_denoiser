@@ -2,15 +2,15 @@ import numpy
 import matplotlib.pyplot
 
 datapath = "./data/"
-dim_X, dim_Y, dim_Z = 12, 10, 200	#dimensions of discretised space
+dim_X, dim_Y, dim_Z = 12, 10, 208	#dimensions of discretised space
 direction_norms = numpy.array([0.6,0.6,0.9])	#factors which multiply each coordinate of direction unit vector (main aim is to increase velocity in Z direction in order to compensate dim_Z >> dim_X, dim_Y)
-signal_energy = 2	#signal deposits this value in every point of lattice which it visits
-noise_energy = 2	#the total sum of values that noise can deposit in visited points of lattice
+signal_energy = 1	#signal deposits this value in every point of lattice which it visits
+noise_energy = 1.5	#the total sum of values that noise can deposit in visited points of lattice
 energy_deposition_coeff = 0.2	#the coefficient of the exponential distribution, which noise samples a random value from and deposits it in the visited point of lattice
 curvature_sigma = 0.1	#sigma of normal distribution, which updateDirection samples R3 vector from
 signal_change_direction_probability = 0.8	#the signal probability that updateDirection is called in a step
 noise_change_direction_probability = 0.8	#the noise probability that updateDirection is called in a step
-noise_tracks_num_range = (15,20)	#the minimal and maximal number of noise tracks
+noise_tracks_num_range = (20,21)	#the minimal and maximal number of noise tracks
 
 def updateDirection(direction :numpy.ndarray):
 	'''Randomly updates the direction vector.'''
@@ -61,7 +61,7 @@ def addNoise(space :numpy.ndarray):
 			position = numpy.array( [numpy.random.randint(0, dim_X), numpy.random.randint(0, dim_Y), dim_Z-1], dtype=float )
 			direction = numpy.array([0.,0.,-direction_norms[2]])
 		while energy > 0:	#the particle moves until it loses all the energy or it moves out of the space
-			energy -= numpy.random.exponential( energy_deposition_coeff )
+			energy -= numpy.clip( numpy.random.exponential(energy_deposition_coeff), 0, 1)
 			space[discretise(position)] += energy
 			if numpy.random.random() < noise_change_direction_probability:	updateDirection(direction)
 			position += direction
@@ -101,6 +101,12 @@ def showProjection(space :numpy.ndarray, axis :int):
 	ax.imshow( getProjection(space, axis), cmap='gray', vmin=0)
 	matplotlib.pyplot.show()
 
+def normalise(arr :numpy.ndarray):
+	'''Linearly maps values of input array to [0,1]'''
+	min, max = numpy.min(arr), numpy.max(arr)
+	f = lambda x:	(x - min) / (max - min)
+	return f(arr)
+
 def genAndDumpData(iterations :int):
 	'''Generates space 3D array with one signal and several noises in each iteration and saves the projections of the clean and noised data.'''
 	noise_names = ["data_noise_zy", "data_noise_zx", "data_noise_yx"]
@@ -121,6 +127,8 @@ def genAndDumpData(iterations :int):
 		if i % 1000 == 0:	print(i, "/", iterations)
 
 	for k in range(3):
+		data_noise[k] = normalise(data_noise[k])
+		data_signal[k] = normalise(data_signal[k])
 		numpy.save(datapath + noise_names[k], data_noise[k])
 		numpy.save(datapath + signal_names[k], data_signal[k])
 
@@ -161,7 +169,7 @@ def showRandomData():
 
 
 #genAndDumpData(20000)
-#showRandomData()
+showRandomData()
 '''
 space = numpy.zeros( (dim_X, dim_Y, dim_Z) )
 addSignal(space)
