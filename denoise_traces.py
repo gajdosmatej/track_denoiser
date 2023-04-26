@@ -63,6 +63,11 @@ class Model:
 		if save_img:
 			keras.utils.plot_model(self.model, to_file='./models/' + name + ".png", show_shapes=True, show_layer_names=False, show_layer_activations=True)
 
+	def saveSignalMetricData(self, data :list, path :str):
+		f = open(path, "w")
+		for val in data:
+			f.write(str(val) + "\n")
+		f.close()
 
 class Plotting:
 	@staticmethod
@@ -76,16 +81,38 @@ class Plotting:
 			matplotlib.pyplot.show()
 
 
+class Testing:
+	@staticmethod
+	def test_QualityEstimator_reconstructedSignals(reconstructed :numpy.ndarray, signal :numpy.ndarray, is_good_reconstruction :bool):
+		fig, ax = matplotlib.pyplot.subplots(2,1)
+		ax[0].imshow(signal, cmap='gray')
+		ax[0].set_title("signal")
+		ax[1].imshow(reconstructed, cmap='gray')
+		ax[1].set_title("reconstructed")
+		fig.suptitle("OK" if is_good_reconstruction else "Bad")
+		matplotlib.pyplot.show()
+
 class QualityEstimator:
 	@staticmethod
 	def reconstructedSignals(signal :numpy.ndarray, reconstructed :numpy.ndarray):
+		'''Estimates the number of well reconstructed signal tracks.'''
 		rec_num = 0
-		treshold = 0.75
+		treshold = 0.14
 		shape = signal.shape
+		metric_data = []
+
+		def metric(sgn, rec):	return numpy.sum(numpy.abs(sgn - rec)) / sgn.size
+
 		for n in range(shape[0]):
 			if n % 100 == 0:	print(n, "/", shape[0])
 			rec_matrix, sgn_matrix = reconstructed[n], signal[n]
-			rec_matrix, sgn_matrix = numpy.where(rec_matrix > 0.01, 1, 0), numpy.where(sgn_matrix > 0.01, 1, 0)
 			mask = sgn_matrix > 0.1
-			if numpy.sum(rec_matrix[mask]) > treshold * numpy.sum(sgn_matrix[mask]):	rec_num += 1
-		return rec_num / shape[0]
+			mtr = metric(sgn_matrix[mask], rec_matrix[mask])
+			#is_good = False
+			if mtr < treshold:
+				#is_good = True
+				rec_num += 1
+			metric_data.append(mtr)
+			#print(metric(sgn_matrix[mask], rec_matrix[mask]))
+			#Testing.test_QualityEstimator_reconstructedSignals(rec_matrix, sgn_matrix, is_good)
+		return (rec_num / shape[0], metric_data)
