@@ -4,8 +4,6 @@ import matplotlib.pyplot
 import keras.utils
 import os
 
-datapath = "./data/"
-
 class Model:
 	'''
 	@staticmethod
@@ -91,31 +89,3 @@ class QualityEstimator:
 			mask = sgn_matrix > 0.1
 			if numpy.sum(rec_matrix[mask]) > treshold * numpy.sum(sgn_matrix[mask]):	rec_num += 1
 		return rec_num / shape[0]
-
-
-zy_projections = numpy.load(datapath + "data_noise_zy.npy")
-zx_projections = numpy.load(datapath + "data_noise_zx.npy")
-yx_projections = numpy.load(datapath + "data_noise_yx.npy")
-zy_projections_sgnl = numpy.load(datapath + "data_signal_zy.npy")
-zx_projections_sgnl = numpy.load(datapath + "data_signal_zx.npy")
-yx_projections_sgnl = numpy.load(datapath + "data_signal_yx.npy")
-
-
-#zx_projections = numpy.pad( zx_projections, ((0,0), (2,0), (0,0)), 'constant', constant_values=0 )
-#zx_projections_sgnl = numpy.pad( zx_projections_sgnl, ((0,0), (2,0), (0,0)), 'constant', constant_values=0 )
-
-zx_projections = zx_projections.reshape( (*zx_projections.shape, 1) )
-zx_projections_sgnl = zx_projections_sgnl.reshape( (*zx_projections_sgnl.shape, 1) )
-
-model_zx = Model()
-model_zx.model.summary()
-model_zx.model.compile(optimizer="adam", loss="binary_crossentropy")
-print(zx_projections.shape)
-model_zx.model.fit(x = zx_projections[:10000], y = zx_projections_sgnl[:10000], shuffle=True, epochs=8, validation_data=(zx_projections[10000:11000], zx_projections_sgnl[9000:10000]))
-
-
-#model_zx = Model.load("2_zx", "zx")
-#model_zx.save()
-
-QualityEstimator.reconstructedSignals(zx_projections_sgnl[15000:], model_zx.model(zx_projections[15000:]))
-#Plotting.plotRandomData(model_zx, zx_projections_sgnl, zx_projections, 3)
