@@ -76,43 +76,111 @@ class Plotting:
 			index = numpy.random.randint(15000, 15500)
 			fig, ax = matplotlib.pyplot.subplots(3)
 			ax[0].imshow( signal_data[index], cmap="gray" )
+			ax[0].set_title("Signal only")
 			ax[1].imshow( noise_data[index], cmap="gray" )
+			ax[1].set_title("Signal + noise")
 			ax[2].imshow( model.estimate(noise_data[index]), cmap="gray" )
+			ax[2].set_title("Signal reconstruction")
 			matplotlib.pyplot.show()
 
 
 class Testing:
 	@staticmethod
-	def test_QualityEstimator_reconstructedSignals(reconstructed :numpy.ndarray, signal :numpy.ndarray, is_good_reconstruction :bool):
+	def test_QualityEstimator_reconstructedSignals(reconstructed :numpy.ndarray, signal :numpy.ndarray):
 		fig, ax = matplotlib.pyplot.subplots(2,1)
 		ax[0].imshow(signal, cmap='gray')
 		ax[0].set_title("signal")
 		ax[1].imshow(reconstructed, cmap='gray')
 		ax[1].set_title("reconstructed")
-		fig.suptitle("OK" if is_good_reconstruction else "Bad")
 		matplotlib.pyplot.show()
 
 class QualityEstimator:
 	@staticmethod
-	def reconstructedSignals(signal :numpy.ndarray, reconstructed :numpy.ndarray):
-		'''Estimates the number of well reconstructed signal tracks.'''
-		rec_num = 0
-		treshold = 0.14
+	def signalsMetric(signal :numpy.ndarray, reconstructed :numpy.ndarray):
+		'''Calculates how well the signal was reconstructed for each pair of data in \'signal\', \'reconstructed\' arrays.'''
 		shape = signal.shape
 		metric_data = []
 
-		def metric(sgn, rec):	return numpy.sum(numpy.abs(sgn - rec)) / sgn.size
+		def metric(sgn, rec):	return numpy.sum(numpy.abs(sgn - rec)) / numpy.sum(sgn)
 
 		for n in range(shape[0]):
 			if n % 100 == 0:	print(n, "/", shape[0])
 			rec_matrix, sgn_matrix = reconstructed[n], signal[n]
 			mask = sgn_matrix > 0.1
 			mtr = metric(sgn_matrix[mask], rec_matrix[mask])
-			#is_good = False
-			if mtr < treshold:
-				#is_good = True
-				rec_num += 1
 			metric_data.append(mtr)
 			#print(metric(sgn_matrix[mask], rec_matrix[mask]))
-			#Testing.test_QualityEstimator_reconstructedSignals(rec_matrix, sgn_matrix, is_good)
-		return (rec_num / shape[0], metric_data)
+			#Testing.test_QualityEstimator_reconstructedSignals(rec_matrix, sgn_matrix)
+		return metric_data
+
+	@staticmethod
+	def reconstructionQuality(signal :numpy.ndarray, reconstructed :numpy.ndarray):
+		'''Calculates how well the signal was reconstructed for each pair of data in \'signal\', \'reconstructed\' arrays.'''
+		threshold = 5e-2
+		shape = signal.shape
+		data_signal_tiles = numpy.array([])
+		data_wrong_reconstruction_tiles = numpy.array([])
+		data_residue_noise_intensity = numpy.array([])
+
+		for k in range(shape[0]):
+			rec_matrix, sgn_matrix = numpy.reshape(reconstructed[k], (shape[1], shape[2])), numpy.reshape(signal[k], (shape[1], shape[2]) )
+
+			rec_matrix_dscr, sgn_matrix_dscr = rec_matrix, sgn_matrix
+			#rec_matrix_dscr, sgn_matrix_dscr = numpy.where(rec_matrix > threshold, 1, 0), numpy.where(sgn_matrix > threshold, 1, 0)
+			mask = sgn_matrix_dscr>0.1
+
+			rows, cols = mask.nonzero()
+			n = rows.size
+			for i in range(n):	#add signal neighbours to mask
+				row, col = rows[i], cols[i]
+				if row > 0 and col > 0:	mask[row-1, col-1] = True
+				if row > 0:	mask[row-1, col] = True
+				if row > 0 and col < shape[2]-1:	mask[row-1, col+1] = True
+				if col < shape[2]-1:	mask[row, col+1] = True
+				if col < shape[2]-1 and row < shape[1]-1:	mask[row+1, col+1] = True
+				if row < shape[1]-1:	mask[row+1, col] = True
+				if row < shape[1]-1 and col > 0:	mask[row+1, col-1] = True
+				if col > 0:	mask[row, col-1] = True
+
+			num_sgn = numpy.sum(sgn_matrix_dscr)
+			num_wrong_reconstr = numpy.sum( numpy.abs(rec_matrix_dscr[mask] - sgn_matrix_dscr[mask]) )
+			data_signal_tiles = numpy.append(data_signal_tiles, num_sgn)
+			data_wrong_reconstruction_tiles = numpy.append(data_wrong_reconstruction_tiles, num_wrong_reconstr)
+			data_residue_noise_intensity = numpy.append(data_residue_noise_intensity, numpy.sum(rec_matrix[mask==False]) )
+
+			if k % 250 == 0:
+				print(k, "/", shape[0])
+				print("Wrong", num_wrong_reconstr, "tiles reconstructed from", num_sgn, "signal tracks")
+			
+			#visualisation for testing only
+			'''if num_wrong_reconstr / num_sgn >= 1:
+				fig, ax = matplotlib.pyplot.subplots(2,2)
+				ax[0,0].imshow(sgn_matrix, cmap='gray')
+				ax[0,0].set_title("signal")
+				ax[1,0].imshow(rec_matrix, cmap='gray')
+				ax[1,0].set_title("reconstructed")
+				ax[1,1].imshow(rec_matrix_dscr, cmap='gray')
+				ax[1,1].set_title("reconstructed discr")
+				ax[0,1].imshow(sgn_matrix_dscr, cmap='gray')
+				ax[0,1].set_title("sign discr")
+				matplotlib.pyplot.show()
+			'''
+		return {"signal": data_signal_tiles, "false_signal": data_wrong_reconstruction_tiles, "noise": data_residue_noise_intensity}
+
+
+	def filteredNoise(signal :numpy.ndarray, reconstructed :numpy.ndarray):
+		'''Calculates how well the noise was filtered for each pair of data in \'signal\', \'reconstructed\' arrays.'''
+		shape = signal.shape
+		metric_data = []
+
+		def metric(sgn, rec):	return numpy.sum(numpy.abs(sgn - rec))
+
+		for n in range(shape[0]):
+			if n % 100 == 0:	print(n, "/", shape[0])
+			rec_matrix, sgn_matrix = reconstructed[n], signal[n]
+			mask = sgn_matrix < 0.1
+			mtr = metric(sgn_matrix[mask], rec_matrix[mask])
+			metric_data.append(mtr)
+			#print(metric(sgn_matrix[mask], rec_matrix[mask]))
+			#Testing.test_QualityEstimator_reconstructedSignals(rec_matrix, sgn_matrix)
+		return metric_data
