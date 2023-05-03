@@ -43,12 +43,12 @@ class Model:
 		return data_point
 
 	@staticmethod
-	def load(name :str, model_type :str):
+	def load(path :str, model_type :str):
 		'''Loads CNN model of type \'model_type\' (\"zy\" / \"zx\" / \"yx\") from tensorflow \'name\' directory.'''
 
 		model = Model()
 		model.type = model_type
-		model.model = keras.models.load_model("./models/" + name)
+		model.model = keras.models.load_model(path)
 		return model
 
 	def save(self, name :str = None, save_img = True):
@@ -74,14 +74,18 @@ class Plotting:
 	def plotRandomData(model :keras.Model, signal_data :numpy.ndarray, noise_data :numpy.ndarray, num_plots = 5):
 		for _ in range(num_plots):
 			index = numpy.random.randint(15000, 15500)
-			fig, ax = matplotlib.pyplot.subplots(3)
-			ax[0].imshow( signal_data[index], cmap="gray" )
-			ax[0].set_title("Signal only")
-			ax[1].imshow( noise_data[index], cmap="gray" )
-			ax[1].set_title("Signal + noise")
-			ax[2].imshow( model.estimate(noise_data[index]), cmap="gray" )
-			ax[2].set_title("Signal reconstruction")
-			matplotlib.pyplot.show()
+			Plotting.plot(model, signal_data[index], noise_data[index])
+			matplotlib.pyplot.plot()
+	
+	@staticmethod
+	def createPlot(model :keras.Model, signal_entry :numpy.ndarray, noise_entry :numpy.ndarray):
+		fig, ax = matplotlib.pyplot.subplots(3)
+		ax[0].imshow( signal_entry, cmap="gray" )
+		ax[0].set_title("Signal only")
+		ax[1].imshow( noise_entry, cmap="gray" )
+		ax[1].set_title("Signal + noise")
+		ax[2].imshow( model.estimate(noise_entry), cmap="gray" )
+		ax[2].set_title("Signal reconstruction")
 
 
 class Testing:
