@@ -1,0 +1,43 @@
+Model: "sequential"
+_________________________________________________________________
+ Layer (type)                Output Shape              Param #   
+=================================================================
+ conv2d (Conv2D)             (None, 12, 208, 20)       500       
+                                                                 
+ max_pooling2d (MaxPooling2D  (None, 12, 104, 20)      0         
+ )                                                               
+                                                                 
+ conv2d_1 (Conv2D)           (None, 12, 104, 30)       24030     
+                                                                 
+ max_pooling2d_1 (MaxPooling  (None, 6, 52, 30)        0         
+ 2D)                                                             
+                                                                 
+ conv2d_2 (Conv2D)           (None, 6, 52, 50)         22550     
+                                                                 
+ max_pooling2d_2 (MaxPooling  (None, 6, 26, 50)        0         
+ 2D)                                                             
+                                                                 
+ conv2d_3 (Conv2D)           (None, 6, 26, 100)        60100     
+                                                                 
+ up_sampling2d (UpSampling2D  (None, 6, 52, 100)       0         
+ )                                                               
+                                                                 
+ conv2d_4 (Conv2D)           (None, 6, 52, 50)         75050     
+                                                                 
+ up_sampling2d_1 (UpSampling  (None, 12, 104, 50)      0         
+ 2D)                                                             
+                                                                 
+ conv2d_5 (Conv2D)           (None, 12, 104, 30)       54030     
+                                                                 
+ up_sampling2d_2 (UpSampling  (None, 12, 208, 30)      0         
+ 2D)                                                             
+                                                                 
+ conv2d_6 (Conv2D)           (None, 12, 208, 20)       14420     
+                                                                 
+ dense (Dense)               (None, 12, 208, 1)        21        
+                                                                 
+=================================================================
+Total params: 250,701
+Trainable params: 250,701
+Non-trainable params: 0
+_________________________________________________________________

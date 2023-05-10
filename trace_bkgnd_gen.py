@@ -168,8 +168,8 @@ def showRandomData():
 		matplotlib.pyplot.show()
 
 
-#genAndDumpData(20000)
-showRandomData()
+genAndDumpData(20000)
+#showRandomData()
 '''
 space = numpy.zeros( (dim_X, dim_Y, dim_Z) )
 addSignal(space)

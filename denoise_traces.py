@@ -152,9 +152,8 @@ class QualityEstimator:
 			data_wrong_reconstruction_tiles = numpy.append(data_wrong_reconstruction_tiles, num_wrong_reconstr)
 			data_residue_noise_intensity = numpy.append(data_residue_noise_intensity, numpy.sum(rec_matrix[mask==False]) )
 
-			if k % 250 == 0:
+			if k % 500 == 0:
 				print(k, "/", shape[0])
-				print("Wrong", num_wrong_reconstr, "tiles reconstructed from", num_sgn, "signal tracks")
 			
 			#visualisation for testing only
 			'''if num_wrong_reconstr / num_sgn >= 1:
