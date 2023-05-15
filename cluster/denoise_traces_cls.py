@@ -7,6 +7,17 @@ class Model:
 	def __init__(self, plane=None):
 		if plane == "zx":	self.chooseModelZX()
 		elif plane == "yx":	self.chooseModelYX()
+		elif plane == "zy":	self.chooseModelZY()
+
+	def chooseModelZY(self):
+		self.type = "zy"
+		self.model = keras.Sequential([	keras.layers.Input(shape=(10,208,1)),
+									keras.layers.Conv2D(padding="same", strides=(1,1), kernel_size=(6,8), filters=32, activation="relu"),
+									keras.layers.MaxPool2D(pool_size = (2,2)),
+									keras.layers.Conv2D(padding="same", strides=(1,1), kernel_size=(4,8), filters=64, activation="relu"),
+									keras.layers.UpSampling2D(size = (2,2)),
+									keras.layers.Conv2D(padding="same", strides=1, kernel_size=(6,8), filters=32, activation="relu"),
+									keras.layers.Dense(units=1, activation="sigmoid") ])
 
 	def chooseModelYX(self):
 		self.type = "yx"

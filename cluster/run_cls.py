@@ -4,16 +4,19 @@ from tensorflow import keras
 import json
 
 
-zx_projections = numpy.load("/scratchdir/data/data_noise_zx.npy")
-zx_projections_sgnl = numpy.load("/scratchdir/data/data_signal_zx.npy")
+zy_projections = numpy.load("/scratchdir/data/data_noise_zy.npy")
+zy_projections_sgnl = numpy.load("/scratchdir/data/data_signal_zy.npy")
 
-zx_projections = zx_projections.reshape( (*zx_projections.shape, 1) )
-zx_projections_sgnl = zx_projections_sgnl.reshape( (*zx_projections_sgnl.shape, 1) )
+zy_projections = zy_projections.reshape( (*zy_projections.shape, 1) )
+zy_projections_sgnl = zy_projections_sgnl.reshape( (*zy_projections_sgnl.shape, 1) )
 
-model_zx = Model("zx")
-model_zx.model.compile(optimizer="adam", loss="binary_crossentropy")
-history = model_zx.model.fit(x = zx_projections[:15000], y = zx_projections_sgnl[:15000], shuffle=True, epochs=30, validation_data=(zx_projections[15000:17000], zx_projections_sgnl[15000:17000]))
-model_zx.save()
+model_zy = Model("zy")
+model_zy.model.compile(optimizer="adam", loss="binary_crossentropy")
+
+callback = keras.callbacks.EarlyStopping(monitor='val_loss', patience=3, min_delta=0.0001)
+history = model_zy.model.fit(x = zy_projections[:15000], y = zy_projections_sgnl[:15000], shuffle=True, epochs=100, 
+			     validation_data=(zy_projections[15000:17000], zy_projections_sgnl[15000:17000]), callbacks=[callback])
+model_zy.save()
 
 hist_json_file = 'history.json' 
 with open("/scratchdir/history.json", mode='w') as f:
