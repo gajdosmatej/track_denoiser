@@ -5,6 +5,19 @@ import keras.utils
 import os
 
 class Model:
+	def __init__(self, plane=None):
+		if plane == "zx":	self.chooseModelZX()
+		elif plane == "yx":	self.chooseModelYX()
+		#elif plane == "zy":	self.chooseModelZY()
+
+	def chooseModelYX(self):
+		self.type = "yx"
+		self.model = keras.Sequential([keras.layers.Input(shape=(12,10,1)),
+									keras.layers.Conv2D(padding="same", strides=(2,2), kernel_size=(5,5), filters=16, activation="relu"),
+									keras.layers.UpSampling2D(size = (2,2)),
+									keras.layers.Conv2D(padding="same", strides=(1,1), kernel_size=(5,5), filters=16, activation="relu"),
+									keras.layers.Dense(units=1, activation="sigmoid")])
+
 	'''
 	@staticmethod
 	def getModelZY():
@@ -16,8 +29,6 @@ class Model:
 									keras.layers.Conv2D(padding="same", strides=1, kernel_size=6, filters=24, activation="relu"),
 									keras.layers.Dense(units=1, activation="sigmoid") ])
 	'''
-	def __init__(self):
-		self.chooseModelZX()
 
 	def chooseModelZX(self):
 		self.type = "zx"
@@ -45,7 +56,6 @@ class Model:
 	@staticmethod
 	def load(path :str, model_type :str):
 		'''Loads CNN model of type \'model_type\' (\"zy\" / \"zx\" / \"yx\") from tensorflow \'name\' directory.'''
-
 		model = Model()
 		model.type = model_type
 		model.model = keras.models.load_model(path)
@@ -63,11 +73,6 @@ class Model:
 		if save_img:
 			keras.utils.plot_model(self.model, to_file='./models/' + name + ".png", show_shapes=True, show_layer_names=False, show_layer_activations=True)
 
-	def saveSignalMetricData(self, data :list, path :str):
-		f = open(path, "w")
-		for val in data:
-			f.write(str(val) + "\n")
-		f.close()
 
 class Plotting:
 	@staticmethod
@@ -88,15 +93,6 @@ class Plotting:
 		ax[2].set_title("Signal reconstruction")
 
 
-class Testing:
-	@staticmethod
-	def test_QualityEstimator_reconstructedSignals(reconstructed :numpy.ndarray, signal :numpy.ndarray):
-		fig, ax = matplotlib.pyplot.subplots(2,1)
-		ax[0].imshow(signal, cmap='gray')
-		ax[0].set_title("signal")
-		ax[1].imshow(reconstructed, cmap='gray')
-		ax[1].set_title("reconstructed")
-		matplotlib.pyplot.show()
 
 class QualityEstimator:
 	@staticmethod
