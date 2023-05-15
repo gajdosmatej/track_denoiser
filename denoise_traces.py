@@ -13,9 +13,12 @@ class Model:
 	def chooseModelYX(self):
 		self.type = "yx"
 		self.model = keras.Sequential([keras.layers.Input(shape=(12,10,1)),
-									keras.layers.Conv2D(padding="same", strides=(2,2), kernel_size=(5,5), filters=16, activation="relu"),
+									keras.layers.Conv2D(padding="same", strides=(1,1), kernel_size=(4,4), filters=64, activation="relu"),
+									keras.layers.MaxPool2D(pool_size = (2,2)),
+									keras.layers.Conv2D(padding="same", strides=(1,1), kernel_size=(3,3), filters=128, activation="relu"),
 									keras.layers.UpSampling2D(size = (2,2)),
-									keras.layers.Conv2D(padding="same", strides=(1,1), kernel_size=(5,5), filters=16, activation="relu"),
+									keras.layers.Conv2D(padding="same", strides=(1,1), kernel_size=(4,4), filters=64, activation="relu"),
+									#keras.layers.Conv2D(padding="same", strides=(1,1), kernel_size=(5,5), filters=256, activation="relu"),
 									keras.layers.Dense(units=1, activation="sigmoid")])
 
 	'''
@@ -79,8 +82,8 @@ class Plotting:
 	def plotRandomData(model :keras.Model, signal_data :numpy.ndarray, noise_data :numpy.ndarray, num_plots = 5):
 		for _ in range(num_plots):
 			index = numpy.random.randint(15000, 15500)
-			Plotting.plot(model, signal_data[index], noise_data[index])
-			matplotlib.pyplot.plot()
+			Plotting.createPlot(model, signal_data[index], noise_data[index])
+			matplotlib.pyplot.show()
 	
 	@staticmethod
 	def createPlot(model :keras.Model, signal_entry :numpy.ndarray, noise_entry :numpy.ndarray):
