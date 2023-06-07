@@ -3,6 +3,7 @@ import numpy
 from tensorflow import keras
 import keras.utils
 import json
+import copy
 import matplotlib.pyplot
 
 names_projections = 	{ "zy": "./data/data_noise_zy.npy",
@@ -32,14 +33,6 @@ keras.utils.plot_model(model.model, to_file= path + "architecture.png", show_sha
 with open(path + "architecture.txt", "w") as f:
 	model.model.summary(print_fn = lambda x: print(x, file=f))
 
-print("> Estimating model quality...")
-
-data = QualityEstimator.reconstructionQuality(projections_sgnl[15000:], model.model.predict(projections[15000:], batch_size=500))
-
-print("> Saving calculated data...")
-numpy.savetxt(path + "wrong_signals.txt", data["false_signal"])
-numpy.savetxt(path + "num_signals.txt", data["signal"])
-numpy.savetxt(path + "residue_noise.txt", data["noise"])
 
 print("> Plotting examples of reconstruction...")
 Plotting.createPlot(model, projections_sgnl[-1], projections[-1])
@@ -51,20 +44,65 @@ matplotlib.pyplot.savefig(path + "example_reconstruction2.png", bbox_inches='tig
 Plotting.createPlot(model, projections_sgnl[-100], projections[-100])
 matplotlib.pyplot.savefig(path + "example_reconstruction3.png", bbox_inches='tight')
 
+
+print("> Estimating model quality...")
+projections_sgnl = projections_sgnl[:100000]
+projections = projections[:100000]
+predictions = model.model.predict(projections, batch_size=500)
+
+data = QualityEstimator.reconstructionQuality(projections_sgnl, predictions)
+
+print("> Saving calculated data...")
+numpy.savetxt(path + "wrong_signals.txt", data["false_signal"])
+numpy.savetxt(path + "num_signals.txt", data["signal"])
+numpy.savetxt(path + "residue_noise.txt", data["noise"])
+
 print("> Plotting quality histograms...")
 matplotlib.pyplot.clf()
-matplotlib.pyplot.hist(data["false_signal"] / data["signal"], bins=50)
+matplotlib.pyplot.hist(data["false_signal"] / data["signal"], bins=200, log=True)
+matplotlib.pyplot.xlabel("Ratio of false reconstructed signal and signal")
+matplotlib.pyplot.ylabel("log(#)")
+matplotlib.pyplot.ylim(None, 10**4)
+matplotlib.pyplot.xlim(None, 1.2)
+matplotlib.pyplot.suptitle("Quality of Signal Reconstruction\n Model " + name)
+matplotlib.pyplot.savefig(path + "hist_signal_log.png", bbox_inches='tight')
+
+matplotlib.pyplot.clf()
+matplotlib.pyplot.hist(data["noise"], bins=200, log=True)
+matplotlib.pyplot.xlabel("Unfiltered noise")
+matplotlib.pyplot.ylabel("log(#)")
+matplotlib.pyplot.ylim(None, 10**5)
+matplotlib.pyplot.xlim(None, 2)
+matplotlib.pyplot.suptitle("Quality of Noise Filtering\n Model " + name)
+matplotlib.pyplot.savefig(path + "hist_noise_log.png", bbox_inches='tight')
+
+matplotlib.pyplot.clf()
+matplotlib.pyplot.hist(data["false_signal"] / data["signal"], bins=200)
 matplotlib.pyplot.xlabel("Ratio of false reconstructed signal and signal")
 matplotlib.pyplot.ylabel("#")
-matplotlib.pyplot.suptitle("Quality of Signal Reconstruction")
+matplotlib.pyplot.ylim(None, 10000)
+matplotlib.pyplot.xlim(None, 1.2)
+matplotlib.pyplot.suptitle("Quality of Signal Reconstruction\n Model " + name)
 matplotlib.pyplot.savefig(path + "hist_signal.png", bbox_inches='tight')
 
 matplotlib.pyplot.clf()
-matplotlib.pyplot.hist(data["noise"], bins=50)
+matplotlib.pyplot.hist(data["noise"], bins=200)
 matplotlib.pyplot.xlabel("Unfiltered noise")
 matplotlib.pyplot.ylabel("#")
-matplotlib.pyplot.suptitle("Quality of Noise Filtering")
+matplotlib.pyplot.ylim(None, 50000)
+matplotlib.pyplot.xlim(None, 2)
+matplotlib.pyplot.suptitle("Quality of Noise Filtering\n Model " + name)
 matplotlib.pyplot.savefig(path + "hist_noise.png", bbox_inches='tight')
+
+
+fixed_cmap = copy.copy(matplotlib.cm.get_cmap('magma'))
+fixed_cmap.set_bad((0,0,0))	#fix pixels with zero occurrence - otherwise problem for LogNorm
+matplotlib.pyplot.clf()
+matplotlib.pyplot.hist2d(data["false_signal"] / data["signal"], data["noise"], [70,70], [[0,1.2], [0,2]], cmap=fixed_cmap, norm=matplotlib.colors.LogNorm())
+matplotlib.pyplot.xlabel("Ratio of false reconstructed signal and signal")
+matplotlib.pyplot.ylabel("Unfiltered noise")
+matplotlib.pyplot.suptitle("2D Log Histogram Of Reconstruction Quality Metrics\n Model " + name + ", $N = 10^{5}$")
+matplotlib.pyplot.savefig(path + "hist_2d.png", bbox_inches='tight')
 
 print("> Plotting model training history...")
 f = open(path + "history.json", "r")
@@ -78,6 +116,6 @@ matplotlib.pyplot.plot([i for i in range(1,n)], history["val_loss"][1:], label="
 matplotlib.pyplot.legend()
 matplotlib.pyplot.xlabel("epoch")
 matplotlib.pyplot.ylabel("binary cross entropy")
-matplotlib.pyplot.suptitle("Training of Model")
+matplotlib.pyplot.suptitle("Training of Model " + name)
 matplotlib.pyplot.savefig(path + "history.png", bbox_inches='tight')
 

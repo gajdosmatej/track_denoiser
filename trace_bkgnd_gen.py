@@ -168,12 +168,13 @@ def showRandomData():
 		matplotlib.pyplot.show()
 
 
-genAndDumpData(20000)
+#genAndDumpData(120000)
 #showRandomData()
-'''
+
 space = numpy.zeros( (dim_X, dim_Y, dim_Z) )
 addSignal(space)
+show3D(space)
 addNoise(space)
 show3D(space)
-showProjections(space)
-'''
+showProjection(space, 0)
+

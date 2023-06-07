@@ -94,6 +94,20 @@ class Plotting:
 		ax[2].imshow( model.estimate(noise_entry), cmap="gray" )
 		ax[2].set_title("Signal reconstruction")
 
+	@staticmethod
+	def plotRandomAllProjections(models: list[keras.Model], signal_data :list[numpy.ndarray], noise_data :list[numpy.ndarray], num_plots = 5):
+		for _ in range(num_plots):
+			index = numpy.random.randint(15000, 15500)
+			fig, ax = matplotlib.pyplot.subplots(3, 3)
+			for i in range(3):
+				ax[0,i].imshow( signal_data[i][index], cmap="gray" )
+				ax[0,i].set_title("Signal only")
+				ax[1,i].imshow( noise_data[i][index], cmap="gray" )
+				ax[1,i].set_title("Signal + noise")
+				ax[2,i].imshow( models[i].estimate(noise_data[i][index]), cmap="gray" )
+				ax[2,i].set_title("Signal reconstruction")
+			matplotlib.pyplot.get_current_fig_manager().window.showMaximized()
+			matplotlib.pyplot.show()
 
 
 class QualityEstimator:
@@ -150,8 +164,8 @@ class QualityEstimator:
 			data_wrong_reconstruction_tiles = numpy.append(data_wrong_reconstruction_tiles, num_wrong_reconstr)
 			data_residue_noise_intensity = numpy.append(data_residue_noise_intensity, numpy.sum(rec_matrix[mask==False]) )
 
-			if k % 500 == 0:
-				print(k, "/", shape[0])
+			if k % 1000 == 999:
+				print(k+1, "/", shape[0])
 			
 			#visualisation for testing only
 			'''if num_wrong_reconstr / num_sgn >= 1:
