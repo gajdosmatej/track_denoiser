@@ -24,6 +24,29 @@ def discretise(coord):
 def isCoordOutOfBounds(coord):
 	return ( coord[0] < 0 or coord[1] < 0 or coord[2] < 0 or coord[0] >= dim_X-0.5 or coord[1] >= dim_Y-0.5 or coord[2] >= dim_Z-0.5)	#coord[i] >= dim_i - 0.5	iff 	round(coord[i]) >= dim_i 
 
+def getRandomBoundaryStart():
+	side = numpy.random.randint(0,6)
+	position, direction = None, None
+	if side == 0:
+		position = numpy.array( [0, numpy.random.randint(0, dim_Y), numpy.random.randint(0, dim_Z)], dtype=float )
+		direction = numpy.array([direction_norms[0],0.,0.])
+	elif side == 1:
+		position = numpy.array( [dim_X-1, numpy.random.randint(0, dim_Y), numpy.random.randint(0, dim_Z)], dtype=float )
+		direction = numpy.array([-direction_norms[0],0.,0.])
+	elif side == 2:
+		position = numpy.array( [numpy.random.randint(0, dim_X), 0, numpy.random.randint(0, dim_Z)], dtype=float )
+		direction = numpy.array([0.,direction_norms[1],0.])
+	elif side == 3:
+		position = numpy.array( [numpy.random.randint(0, dim_X), dim_Y-1, numpy.random.randint(0, dim_Z)], dtype=float )
+		direction = numpy.array([0.,-direction_norms[1],0.])
+	elif side == 4:
+		position = numpy.array( [numpy.random.randint(0, dim_X), numpy.random.randint(0, dim_Y), 0], dtype=float )
+		direction = numpy.array([0.,0.,direction_norms[2]])
+	else:
+		position = numpy.array( [numpy.random.randint(0, dim_X), numpy.random.randint(0, dim_Y), dim_Z-1], dtype=float )
+		direction = numpy.array([0.,0.,-direction_norms[2]])
+	return (position, direction)
+
 def addSignal(space :numpy.ndarray):
 	'''Adds one signal track into the input 3D array space.'''
 	position = (dim_X/2, dim_Y/2, dim_Z/2)	#the track begins in the middle of the space
@@ -38,28 +61,8 @@ def addNoise(space :numpy.ndarray):
 	'''Adds several noise tracks into the input 3D array space.'''
 	num_of_traces = numpy.random.randint( *noise_tracks_num_range )
 	for _ in range(num_of_traces):
-		direction = None
-		position = None
-		side = numpy.random.randint(0,6)	#the noise always starts on the boundary of the space
+		position, direction = getRandomBoundaryStart()
 		energy = noise_energy
-		if side == 0:
-			position = numpy.array( [0, numpy.random.randint(0, dim_Y), numpy.random.randint(0, dim_Z)], dtype=float )
-			direction = numpy.array([direction_norms[0],0.,0.])
-		elif side == 1:
-			position = numpy.array( [dim_X-1, numpy.random.randint(0, dim_Y), numpy.random.randint(0, dim_Z)], dtype=float )
-			direction = numpy.array([-direction_norms[0],0.,0.])
-		elif side == 2:
-			position = numpy.array( [numpy.random.randint(0, dim_X), 0, numpy.random.randint(0, dim_Z)], dtype=float )
-			direction = numpy.array([0.,direction_norms[1],0.])
-		elif side == 3:
-			position = numpy.array( [numpy.random.randint(0, dim_X), dim_Y-1, numpy.random.randint(0, dim_Z)], dtype=float )
-			direction = numpy.array([0.,-direction_norms[1],0.])
-		elif side == 4:
-			position = numpy.array( [numpy.random.randint(0, dim_X), numpy.random.randint(0, dim_Y), 0], dtype=float )
-			direction = numpy.array([0.,0.,direction_norms[2]])
-		else:
-			position = numpy.array( [numpy.random.randint(0, dim_X), numpy.random.randint(0, dim_Y), dim_Z-1], dtype=float )
-			direction = numpy.array([0.,0.,-direction_norms[2]])
 		while energy > 0:	#the particle moves until it loses all the energy or it moves out of the space
 			energy -= numpy.clip( numpy.random.exponential(energy_deposition_coeff), 0, 1)
 			space[discretise(position)] += energy

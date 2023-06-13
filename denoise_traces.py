@@ -3,6 +3,7 @@ from tensorflow import keras
 import matplotlib.pyplot
 import keras.utils
 import os
+import copy
 
 class Model:
 	def __init__(self, plane=None):
@@ -75,7 +76,6 @@ class Model:
 		if save_img:
 			keras.utils.plot_model(self.model, to_file='./models/' + name + ".png", show_shapes=True, show_layer_names=False, show_layer_activations=True)
 
-
 class Plotting:
 	@staticmethod
 	def plotRandomData(model :keras.Model, noise_data :numpy.ndarray, signal_data :numpy.ndarray = None, num_plots :int = 5, rng = (15000, 15500), plane :str = "zx"):
@@ -103,9 +103,11 @@ class Plotting:
 				ax[i].set_ylabel(axes[plane][1])
 		else:
 			fig, ax = matplotlib.pyplot.subplots(2)
-			ax[0].imshow( noise_entry, cmap="gray" )
+			fixed_cmap = copy.copy(matplotlib.cm.get_cmap('magma'))
+			fixed_cmap.set_bad((0,0,0))	#fix pixels with zero occurrence - otherwise problem for LogNorm
+			ax[0].imshow( noise_entry, cmap=fixed_cmap, norm=matplotlib.colors.PowerNorm(gamma=0.05) )
 			ax[0].set_title("Signal + noise")
-			ax[1].imshow( model.estimate(noise_entry), cmap="gray" )
+			ax[1].imshow( model.estimate(noise_entry), cmap=fixed_cmap, norm=matplotlib.colors.PowerNorm(gamma=0.05) )
 			ax[1].set_title("Signal reconstruction")
 			for i in range(2):
 				ax[i].set_xlabel(axes[plane][0])
