@@ -2,12 +2,12 @@ import numpy
 import matplotlib.pyplot
 
 datapath = "./data/"
-dim_X, dim_Y, dim_Z = 12, 10, 208	#dimensions of discretised space
-direction_norms = numpy.array([0.6,0.6,0.9])	#factors which multiply each coordinate of direction unit vector (main aim is to increase velocity in Z direction in order to compensate dim_Z >> dim_X, dim_Y)
+dim_X, dim_Y, dim_Z = 12, 14, 208	#dimensions of discretised space
+direction_norms = numpy.array([0.5,0.5,0.75])	#factors which multiply each coordinate of direction unit vector (main aim is to increase velocity in Z direction in order to compensate dim_Z >> dim_X, dim_Y)
 signal_energy = 1	#signal deposits this value in every point of lattice which it visits
-noise_energy = 1.5	#the total sum of values that noise can deposit in visited points of lattice
-energy_deposition_coeff = 0.2	#the coefficient of the exponential distribution, which noise samples a random value from and deposits it in the visited point of lattice
-curvature_sigma = 0.1	#sigma of normal distribution, which updateDirection samples R3 vector from
+noise_energy = 1	#the total sum of values that noise can deposit in visited points of lattice
+energy_deposition_coeff = 0.4	#the coefficient of the exponential distribution, which noise samples a random value from and deposits it in the visited point of lattice
+curvature_sigma = 0.2	#sigma of normal distribution, which updateDirection samples R3 vector from
 signal_change_direction_probability = 0.8	#the signal probability that updateDirection is called in a step
 noise_change_direction_probability = 0.8	#the noise probability that updateDirection is called in a step
 noise_tracks_num_range = (20,21)	#the minimal and maximal number of noise tracks
@@ -49,13 +49,19 @@ def getRandomBoundaryStart():
 
 def addSignal(space :numpy.ndarray):
 	'''Adds one signal track into the input 3D array space.'''
+	'''
 	position = (dim_X/2, dim_Y/2, dim_Z/2)	#the track begins in the middle of the space
 	direction = numpy.random.uniform( low = (-1)*direction_norms, high = direction_norms, size=3)	#random moving direction
 	while not isCoordOutOfBounds(position):	#the track propagades until it moves out of the space boundaries
 		space[discretise(position)] = signal_energy
 		if numpy.random.random() < signal_change_direction_probability:	updateDirection(direction)
 		position += direction
-
+	'''
+	position, direction = getRandomBoundaryStart()
+	while not isCoordOutOfBounds(position):
+		space[discretise(position)] = signal_energy
+		if numpy.random.random() < signal_change_direction_probability:	updateDirection(direction)
+		position += direction
 
 def addNoise(space :numpy.ndarray):
 	'''Adds several noise tracks into the input 3D array space.'''
@@ -74,12 +80,18 @@ def addNoise(space :numpy.ndarray):
 def show3D(space :numpy.ndarray):
 	'''Shows 3D scatter plot of the input space.'''
 	xs, ys, zs = space.nonzero()
+	vals = numpy.array([space[xs[i],ys[i],zs[i]] for i in range(len(xs))])
 	fig = matplotlib.pyplot.figure()
 	ax = fig.add_subplot(projection='3d')
-	ax.scatter(xs, ys, zs)
-	ax.set_xlim(0,dim_X)
-	ax.set_ylim(0,dim_Y)
-	ax.set_zlim(0,dim_Z)
+	sctr = ax.scatter(xs, ys, zs, c=vals, cmap="plasma")
+	ax.set_xlim(0, 11)
+	ax.set_xlabel("$x$")
+	ax.set_ylim(0, 13)
+	ax.set_ylabel("$y$")
+	ax.set_zlim(0, 200)
+	ax.set_zlabel("$z$")
+	cb = fig.colorbar(sctr, ax=ax)
+	cb.set_label("$E$")
 	matplotlib.pyplot.show()
 
 def getProjection(space :numpy.ndarray, axis :int):
@@ -87,7 +99,7 @@ def getProjection(space :numpy.ndarray, axis :int):
 
 def showProjections(space :numpy.ndarray):
 	'''Shows plots of the space projections into the xy, yz and zx planes.'''
-	fig, ax = matplotlib.pyplot.subplots(1,3)
+	fig, ax = matplotlib.pyplot.subplots(3,1)
 	ax[0].imshow(getProjection(space, 0), cmap='gray', vmin=0)
 	ax[0].set_xlabel("z")
 	ax[0].set_ylabel("y")
@@ -104,11 +116,11 @@ def showProjection(space :numpy.ndarray, axis :int):
 	ax.imshow( getProjection(space, axis), cmap='gray', vmin=0)
 	matplotlib.pyplot.show()
 
+
+
 def normalise(arr :numpy.ndarray):
 	'''Linearly maps values of input array to [0,1]'''
-	min, max = numpy.min(arr), numpy.max(arr)
-	f = lambda x:	(x - min) / (max - min)
-	return f(arr)
+	return arr/numpy.max(arr)
 
 def genAndDumpData(iterations :int):
 	'''Generates space 3D array with one signal and several noises in each iteration and saves the projections of the clean and noised data.'''
