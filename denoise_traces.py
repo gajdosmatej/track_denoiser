@@ -78,21 +78,39 @@ class Model:
 
 class Plotting:
 	@staticmethod
-	def plotRandomData(model :keras.Model, signal_data :numpy.ndarray, noise_data :numpy.ndarray, num_plots = 5):
+	def plotRandomData(model :keras.Model, noise_data :numpy.ndarray, signal_data :numpy.ndarray = None, num_plots :int = 5, rng = (15000, 15500), plane :str = "zx"):
 		for _ in range(num_plots):
-			index = numpy.random.randint(15000, 15500)
-			Plotting.createPlot(model, signal_data[index], noise_data[index])
+			index = numpy.random.randint(*rng)
+			if signal_data != None:
+				Plotting.createPlot(model, noise_data[index], signal_data[index], plane = plane)
+			else:
+				Plotting.createPlot(model, noise_data[index], plane = plane)
 			matplotlib.pyplot.show()
 	
 	@staticmethod
-	def createPlot(model :keras.Model, signal_entry :numpy.ndarray, noise_entry :numpy.ndarray):
-		fig, ax = matplotlib.pyplot.subplots(3)
-		ax[0].imshow( signal_entry, cmap="gray" )
-		ax[0].set_title("Signal only")
-		ax[1].imshow( noise_entry, cmap="gray" )
-		ax[1].set_title("Signal + noise")
-		ax[2].imshow( model.estimate(noise_entry), cmap="gray" )
-		ax[2].set_title("Signal reconstruction")
+	def createPlot(model :keras.Model, noise_entry :numpy.ndarray, signal_entry :numpy.ndarray = None, plane :str = "zx"):
+		axes = {"zx": ("$z$", "$x$"), "zy": ("$z$", "$y$"), "yx": ("$x$", "$y$")}
+		if signal_entry != None:
+			fig, ax = matplotlib.pyplot.subplots(3)
+			ax[0].imshow( signal_entry, cmap="gray" )
+			ax[0].set_title("Signal only")
+			ax[1].imshow( noise_entry, cmap="gray" )
+			ax[1].set_title("Signal + noise")
+			ax[2].imshow( model.estimate(noise_entry), cmap="gray" )
+			ax[2].set_title("Signal reconstruction")
+			for i in range(3):
+				ax[i].set_xlabel(axes[plane][0])
+				ax[i].set_ylabel(axes[plane][1])
+		else:
+			fig, ax = matplotlib.pyplot.subplots(2)
+			ax[0].imshow( noise_entry, cmap="gray" )
+			ax[0].set_title("Signal + noise")
+			ax[1].imshow( model.estimate(noise_entry), cmap="gray" )
+			ax[1].set_title("Signal reconstruction")
+			for i in range(2):
+				ax[i].set_xlabel(axes[plane][0])
+				ax[i].set_ylabel(axes[plane][1])
+		
 
 	@staticmethod
 	def plotRandomAllProjections(models: list[keras.Model], signal_data :list[numpy.ndarray], noise_data :list[numpy.ndarray], num_plots = 5):
