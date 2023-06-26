@@ -50,7 +50,7 @@ projections_sgnl = projections_sgnl[:100000]
 projections = projections[:100000]
 predictions = model.model.predict(projections, batch_size=500)
 
-data = QualityEstimator.reconstructionQuality(projections_sgnl, predictions)
+data, _ = QualityEstimator.reconstructionQuality(projections_sgnl, predictions)
 
 print("> Saving calculated data...")
 numpy.savetxt(path + "wrong_signals.txt", data["false_signal"])

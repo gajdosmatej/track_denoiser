@@ -1,5 +1,7 @@
 import numpy
 import matplotlib.pyplot
+import time
+import os
 
 def getProjection(space :numpy.ndarray, axis :int):
 	return numpy.sum(space, axis)
@@ -8,18 +10,21 @@ def normalise(arr :numpy.ndarray):
 	'''Linearly maps values of input array to [0,1]'''
 	return arr/numpy.max(arr)
 
+
 class Generator:
 	DIMENSIONS = (12, 14, 208)
-	CURVATURE_SIGMA = 0.2	#sigma of normal distribution, which updateDirection samples R3 vector from
-	DIRECTION_NORMS = numpy.array([0.5,0.5,0.85])	#factors which multiply each coordinate of direction unit vector (main aim is to increase velocity in Z direction in order to compensate dim_Z >> dim_X, dim_Y)
+	CURVATURE_SIGMA = 0.05	#sigma of normal distribution, which updateDirection samples R3 vector from
+	DIRECTION_NORMS = numpy.array([0.7,0.7,1.0])	#factors which multiply each coordinate of direction unit vector (main aim is to increase velocity in Z direction in order to compensate dim_Z >> dim_X, dim_Y)
 	SIGNAL_ENERGY = 1	#signal deposits this value in every point of lattice which it visits
 	NOISE_ENERGY = 1.3	#the total sum of values that noise can deposit in visited points of lattice
 	ENERGY_DEPOSITION_COEFFITIENT = 0.4	#the coefficient of the exponential distribution, which noise samples a random value from and deposits it in the visited point of lattice
-	SIGNAL_CHANGE_DIRECTION_PROBABILITY = 0.7	#the signal probability that updateDirection is called in a step
+	SIGNAL_CHANGE_DIRECTION_PROBABILITY = 0.1	#the signal probability that updateDirection is called in a step
 	NOISE_CHANGE_DIRECTION_PROBABILITY = 0.8	#the noise probability that updateDirection is called in a step
-	SIGNAL_STOP_PROBABILITY = 0.0005	#the probability increment that the signal track stops
-	NOISE_TRACKS_NUM_RANGE = (20,21)	#the minimal and maximal number of noise tracks
-	DATA_DIR_PATH = "./data/"
+	SIGNAL_STOP_PROBABILITY = 0.05	#the probability increment that the signal track stops
+	NOISE_TRACKS_NUM_RANGE = (15,31)	#the minimal and maximal number of noise tracks
+	DATA_DIR_PATH = "./data/simulated/"
+	NOISE_MEAN_ENERGY = 0.5
+	NOISE_SIGMA_ENERGY = 0.3
 
 	def __init__(self):
 		self.initialise()
@@ -71,57 +76,83 @@ class Generator:
 		z = numpy.cos(polar_angle)
 		return numpy.array( [x,y,z] )*self.DIRECTION_NORMS 
 
-	def addSignal(self):
+	def OLDaddSignal(self):
 		'''Adds one signal track into the input 3D array space.'''
 		position = numpy.array(self.DIMENSIONS) * numpy.random.normal(loc=0.5, scale=0.1, size=3)	#the track begins in the middle of the space
 		direction = self.sampleInitSignalDirection()
-		self.updateDirection(direction)	#random moving direction
 		cumulation_stop_probability = 0
 		while not self.isCoordOutOfBounds(position) and numpy.random.random() > cumulation_stop_probability:	#the track propagades until it moves out of the space boundaries
-			self.space[self.discretise(position)] = numpy.clip( numpy.random.normal(self.SIGNAL_ENERGY, self.SIGNAL_ENERGY/3), 0, None)
+			self.space[self.discretise(position)] = 1
 			if numpy.random.random() < self.SIGNAL_CHANGE_DIRECTION_PROBABILITY:	self.updateDirection(direction)
 			position += direction
 			cumulation_stop_probability += self.SIGNAL_STOP_PROBABILITY
+		coord = numpy.nonzero(self.space)
+		self.space[coord] = numpy.clip( numpy.random.normal(self.SIGNAL_ENERGY, self.SIGNAL_ENERGY/3, coord[0].shape), 0, None)
 
-	def addNoise(self):
+	def OLDaddNoise(self):
 		'''Adds several noise tracks into the input 3D array space.'''
-		num_of_traces = numpy.random.randint( *self.NOISE_TRACKS_NUM_RANGE )
+		num_of_traces = 20
 		for _ in range(num_of_traces):
 			position = (numpy.array(self.DIMENSIONS) - 1) * numpy.random.random(size=3)
 			direction = numpy.zeros(3)
 			self.updateDirection(direction)
 			energy = self.NOISE_ENERGY
 			while energy > 0:	#the particle moves until it loses all the energy or it moves out of the space
-				energy -= numpy.clip( numpy.random.exponential(self.ENERGY_DEPOSITION_COEFFITIENT), 0, 1)
-				self.space[self.discretise(position)] += energy
+				lost_energy = numpy.clip( numpy.random.exponential(self.ENERGY_DEPOSITION_COEFFITIENT), 0, 1)
+				self.space[self.discretise(position)] += lost_energy
+				energy -= lost_energy
 				if numpy.random.random() < self.NOISE_CHANGE_DIRECTION_PROBABILITY:	self.updateDirection(direction)
 				position += direction
 				if self.isCoordOutOfBounds(position):	break
 
+	def addSignal(self):
+		'''Adds one signal track into the input 3D array space.'''
+		position = numpy.array(self.DIMENSIONS) * numpy.random.normal(loc=0.5, scale=0.1, size=3)	#the track begins in the middle of the space
+		direction = self.sampleInitSignalDirection()
+		cumulation_stop_probability = 0.005
+		while not self.isCoordOutOfBounds(position) and numpy.random.random() > cumulation_stop_probability:	#the track propagades until it moves out of the space boundaries
+			self.space[self.discretise(position)] += 1
+			if numpy.random.random() < self.SIGNAL_CHANGE_DIRECTION_PROBABILITY:	self.updateDirection(direction)
+			position += direction
+			cumulation_stop_probability += self.SIGNAL_STOP_PROBABILITY*cumulation_stop_probability
+		coord = numpy.nonzero(self.space)
+		self.space[coord] *= numpy.clip( numpy.random.normal(self.SIGNAL_ENERGY, self.SIGNAL_ENERGY/3, coord[0].shape), 0, None)
+
+	def addNoise(self):
+		'''Adds several noise tracks into the input 3D array space.'''
+		num_of_traces = numpy.random.randint( *self.NOISE_TRACKS_NUM_RANGE )
+		for _ in range(num_of_traces):
+			position = (numpy.array(self.DIMENSIONS) - 1) * numpy.random.random(size=3)
+			self.space[self.discretise(position)] += numpy.clip( numpy.random.normal(loc=self.NOISE_MEAN_ENERGY, scale=self.NOISE_SIGMA_ENERGY), 0, None)
+
 	def genAndDumpData(self, iterations :int):
 		'''Generates space 3D array with one signal and several noises in each iteration and saves the projections of the clean and noised data.'''
-		noise_names = ["data_noise_zy", "data_noise_zx", "data_noise_yx"]
-		signal_names = ["data_signal_zy", "data_signal_zx", "data_signal_yx"]
+		noise_names = ["_noise_zy", "_noise_zx", "_noise_yx"]
+		signal_names = ["_signal_zy", "_signal_zx", "_signal_yx"]
+		file_size = 20000
 
-		data_noise, data_signal = [[], [], []], [[], [], []]
+		increment = len(os.listdir(self.DATA_DIR_PATH)) // 6
 
-		for i in range(iterations):
-			self.initialise()
-			self.addSignal()
+		file_num = iterations // file_size
+		for file_i in range(file_num):
+			data_noise, data_signal = [[], [], []], [[], [], []]
+			print("Generating data...")
+			for i in range(file_size):
+				if i % 1000 == 0:	print("{:,}".format(file_i *file_size + i), "/", "{:,}".format(iterations))
+				self.initialise()
+				self.addSignal()
+				for k in range(3):
+					data_signal[k].append(getProjection(self.space, k))
+				self.addNoise()
+
+				for k in range(3):
+					data_noise[k].append(getProjection(self.space, k))
+			print("Saving batch...")
 			for k in range(3):
-				data_signal[k].append(getProjection(self.space, k))
-				
-			self.addNoise()
-			for k in range(3):
-				data_noise[k].append(getProjection(self.space, k))
-
-			if i % 1000 == 0:	print(i, "/", iterations)
-
-		for k in range(3):
-			data_noise[k] = normalise(data_noise[k])
-			data_signal[k] = normalise(data_signal[k])
-			numpy.save(self.DATA_DIR_PATH + noise_names[k], data_noise[k])
-			numpy.save(self.DATA_DIR_PATH + signal_names[k], data_signal[k])
+				data_noise[k] = normalise(data_noise[k])
+				data_signal[k] = normalise(data_signal[k])
+				numpy.save(self.DATA_DIR_PATH + str(increment+file_i) + noise_names[k], data_noise[k])
+				numpy.save(self.DATA_DIR_PATH + str(increment+file_i) + signal_names[k], data_signal[k])
 
 class Support:
 	@staticmethod
@@ -201,13 +232,17 @@ class Support:
 		matplotlib.pyplot.show()
 
 
-#genAndDumpData(70000)
+generator = Generator()
+generator.genAndDumpData(int(5e6))
 #showRandomData()
 
-generator = Generator()
-generator.addSignal()
-Support.show3D(generator.space)
-generator.addNoise()
-Support.show3D(generator.space)
-Support.showProjections(generator.space, [1,2])
 
+generator = Generator()
+while True:
+	generator.addSignal()
+	Support.show3D(generator.space)
+	generator.addNoise()
+	Support.show3D(generator.space)
+	Support.showProjections(generator.space, [1,2])
+	if input() == "q":	break
+	else:	generator.initialise()

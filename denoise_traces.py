@@ -81,7 +81,7 @@ class Plotting:
 	def plotRandomData(model :keras.Model, noise_data :numpy.ndarray, signal_data :numpy.ndarray = None, num_plots :int = 5, rng = (15000, 15500), plane :str = "zx"):
 		for _ in range(num_plots):
 			index = numpy.random.randint(*rng)
-			if signal_data != None:
+			if signal_data is not None:
 				Plotting.createPlot(model, noise_data[index], signal_data[index], plane = plane)
 			else:
 				Plotting.createPlot(model, noise_data[index], plane = plane)
@@ -90,7 +90,7 @@ class Plotting:
 	@staticmethod
 	def createPlot(model :keras.Model, noise_entry :numpy.ndarray, signal_entry :numpy.ndarray = None, plane :str = "zx"):
 		axes = {"zx": ("$z$", "$x$"), "zy": ("$z$", "$y$"), "yx": ("$x$", "$y$")}
-		if signal_entry != None:
+		if signal_entry is not None:
 			fig, ax = matplotlib.pyplot.subplots(3)
 			ax[0].imshow( signal_entry, cmap="gray" )
 			ax[0].set_title("Signal only")
@@ -152,11 +152,11 @@ class QualityEstimator:
 	@staticmethod
 	def reconstructionQuality(signal :numpy.ndarray, reconstructed :numpy.ndarray):
 		'''Calculates how well the signal was reconstructed for each pair of data in \'signal\', \'reconstructed\' arrays.'''
-		threshold = 5e-2
 		shape = signal.shape
 		data_signal_tiles = numpy.array([])
 		data_wrong_reconstruction_tiles = numpy.array([])
 		data_residue_noise_intensity = numpy.array([])
+		interesting_indices = []
 
 		for k in range(shape[0]):
 			rec_matrix, sgn_matrix = numpy.reshape(reconstructed[k], (shape[1], shape[2])), numpy.reshape(signal[k], (shape[1], shape[2]) )
@@ -181,6 +181,8 @@ class QualityEstimator:
 			num_sgn = numpy.sum(sgn_matrix_dscr)
 			num_wrong_reconstr = numpy.sum( numpy.abs(rec_matrix_dscr[mask] - sgn_matrix_dscr[mask]) )
 			data_signal_tiles = numpy.append(data_signal_tiles, num_sgn)
+			if num_wrong_reconstr / num_sgn > 0.5:
+				interesting_indices.append(k)
 			data_wrong_reconstruction_tiles = numpy.append(data_wrong_reconstruction_tiles, num_wrong_reconstr)
 			data_residue_noise_intensity = numpy.append(data_residue_noise_intensity, numpy.sum(rec_matrix[mask==False]) )
 
@@ -200,7 +202,7 @@ class QualityEstimator:
 				ax[0,1].set_title("sign discr")
 				matplotlib.pyplot.show()
 			'''
-		return {"signal": data_signal_tiles, "false_signal": data_wrong_reconstruction_tiles, "noise": data_residue_noise_intensity}
+		return {"signal": data_signal_tiles, "false_signal": data_wrong_reconstruction_tiles, "noise": data_residue_noise_intensity}, interesting_indices
 
 
 	def filteredNoise(signal :numpy.ndarray, reconstructed :numpy.ndarray):
