@@ -5,12 +5,33 @@ import keras.utils
 import os
 import copy
 
+class DataLoader:
+	def __init__(self, path :str, plane :str, start_file :int, end_file :int):
+		self.path = path
+		self.plane = plane
+		self.start_file = start_file
+		self.end_file = end_file
+		self.batch_size = 500
+
+	def getDataBatch(self):
+		batch_fsize_ratio = 20000 // self.batch_size
+		while True:
+			file_i = numpy.random.randint(self.start_file, self.end_file)
+			signal = numpy.load(self.path + str(file_i) + "_signal_" + self.plane + ".npy")
+			noise = numpy.load(self.path + str(file_i) + "_noise_" + self.plane + ".npy")
+			
+			indices = numpy.arange(batch_fsize_ratio)
+			numpy.random.shuffle(indices)
+			for row_i in indices:
+				yield (noise[row_i*self.batch_size:(row_i+1)*self.batch_size], signal[row_i*self.batch_size:(row_i+1)*self.batch_size])
+
 class Model:
 	def __init__(self, plane=None):
 		if plane == "zx":	self.chooseModelZX()
 		elif plane == "yx":	self.chooseModelYX()
 		elif plane == "zy":	self.chooseModelZY()
 
+	#TODO
 	def chooseModelYX(self):
 		self.type = "yx"
 		self.model = keras.Sequential([keras.layers.Input(shape=(12,10,1)),
@@ -23,10 +44,11 @@ class Model:
 									keras.layers.Conv2D(padding="same", strides=(1,1), kernel_size=(6,6), filters=10, activation="relu"),
 									keras.layers.Dense(units=1, activation="sigmoid")])
 
+	#TODO
 	def chooseModelZY(self):
 		self.type = "zy"
-		self.model = keras.Sequential([	keras.layers.Input(shape=(10,208,1)),
-									keras.layers.Conv2D(padding="same", strides=(1,1), kernel_size=(6,8), filters=32, activation="relu"),
+		self.model = keras.Sequential([	keras.layers.Input(shape=(14,208,1)),
+									keras.layers.Conv2D(padding="same", strides=(1,1), kernel_size=(4,8), filters=32, activation="relu"),
 									keras.layers.MaxPool2D(pool_size = (2,2)),
 									keras.layers.Conv2D(padding="same", strides=(1,1), kernel_size=(4,8), filters=64, activation="relu"),
 									keras.layers.UpSampling2D(size = (2,2)),
@@ -36,19 +58,15 @@ class Model:
 	def chooseModelZX(self):
 		self.type = "zx"
 		self.model = keras.Sequential([	keras.layers.Input(shape=(12,208,1)),
-									keras.layers.Conv2D(padding="same", strides=(1,1), kernel_size=(4,8), filters=16, activation="relu"),
+									keras.layers.Conv2D(padding="same", strides=(1,1), kernel_size=(3,5), filters=32, activation="relu"),
+									keras.layers.MaxPool2D(pool_size = (1,2)),
+									keras.layers.Conv2D(padding="same", strides=(1,1), kernel_size=(3,4), filters=64, activation="relu"),
 									keras.layers.MaxPool2D(pool_size = (2,2)),
-									keras.layers.Conv2D(padding="same", strides=(1,1), kernel_size=(3,6), filters=32, activation="relu"),
-									keras.layers.MaxPool2D(pool_size = (1,2)),
-									keras.layers.Conv2D(padding="same", strides=(1,1), kernel_size=(2,4), filters=64, activation="relu"),
-									keras.layers.MaxPool2D(pool_size = (1,2)),
-									keras.layers.Conv2D(padding="same", strides=(1,1), kernel_size=(2,2), filters=128, activation="relu"),
-									keras.layers.UpSampling2D(size = (1,2)),
-									keras.layers.Conv2D(padding="same", strides=(1,1), kernel_size=(2,4), filters=64, activation="relu"),
-									keras.layers.UpSampling2D(size = (1,2)),
-									keras.layers.Conv2D(padding="same", strides=(1,1), kernel_size=(3,6), filters=32, activation="relu"),
+									keras.layers.Conv2D(padding="same", strides=(1,1), kernel_size=(3,3), filters=128, activation="relu"),
 									keras.layers.UpSampling2D(size = (2,2)),
-									keras.layers.Conv2D(padding="same", strides=(1,1), kernel_size=(4,8), filters=16, activation="relu"),
+									keras.layers.Conv2D(padding="same", strides=(1,1), kernel_size=(3,4), filters=64, activation="relu"),
+									keras.layers.UpSampling2D(size = (1,2)),
+									keras.layers.Conv2D(padding="same", strides=(1,1), kernel_size=(3,5), filters=32, activation="relu"),
 									keras.layers.Dense(units=1, activation="sigmoid") ])
 
 	def estimate(self, data_point :numpy.ndarray):
@@ -103,11 +121,9 @@ class Plotting:
 				ax[i].set_ylabel(axes[plane][1])
 		else:
 			fig, ax = matplotlib.pyplot.subplots(2)
-			fixed_cmap = copy.copy(matplotlib.cm.get_cmap('magma'))
-			fixed_cmap.set_bad((0,0,0))	#fix pixels with zero occurrence - otherwise problem for LogNorm
-			ax[0].imshow( noise_entry, cmap=fixed_cmap, norm=matplotlib.colors.PowerNorm(gamma=0.05) )
+			ax[0].imshow( noise_entry, cmap="gray")
 			ax[0].set_title("Signal + noise")
-			ax[1].imshow( model.estimate(noise_entry), cmap=fixed_cmap, norm=matplotlib.colors.PowerNorm(gamma=0.05) )
+			ax[1].imshow( model.estimate(noise_entry), cmap="gray" )
 			ax[1].set_title("Signal reconstruction")
 			for i in range(2):
 				ax[i].set_xlabel(axes[plane][0])

@@ -16,11 +16,7 @@ class Generator:
 	CURVATURE_SIGMA = 0.05	#sigma of normal distribution, which updateDirection samples R3 vector from
 	DIRECTION_NORMS = numpy.array([0.5,0.5,1.0])	#factors which multiply each coordinate of direction unit vector (main aim is to increase velocity in Z direction in order to compensate dim_Z >> dim_X, dim_Y)
 	SIGNAL_ENERGY = 1	#signal deposits this value in every point of lattice which it visits
-	NOISE_ENERGY = 1.3	#the total sum of values that noise can deposit in visited points of lattice
-	ENERGY_DEPOSITION_COEFFITIENT = 0.4	#the coefficient of the exponential distribution, which noise samples a random value from and deposits it in the visited point of lattice
 	SIGNAL_CHANGE_DIRECTION_PROBABILITY = 0.1	#the signal probability that updateDirection is called in a step
-	NOISE_CHANGE_DIRECTION_PROBABILITY = 0.8	#the noise probability that updateDirection is called in a step
-	SIGNAL_STOP_PROBABILITY = 0.05	#the probability increment that the signal track stops
 	NOISE_TRACKS_NUM_RANGE = (15,31)	#the minimal and maximal number of noise tracks
 	DATA_DIR_PATH = "./data/simulated/"
 	NOISE_MEAN_ENERGY = 0.5
@@ -39,6 +35,7 @@ class Generator:
 		direction *= self.DIRECTION_NORMS
 
 	def discretise(self, coord):
+		'''Find discretised space node corresponding to given spatial coordinates.'''
 		return (round(coord[0]), round(coord[1]), round(coord[2]))
 
 	def isCoordOutOfBounds(self, coord):
@@ -69,43 +66,7 @@ class Generator:
 
 	def sampleInitSignalDirection(self):
 		'''Samples signal direction vector with bias in z axis.'''
-		#Samples signal direction vector uniformly in spherical coordinates, so that the z axis (zenith) direction is biased.'''
-		'''azimuthal_angle = numpy.random.random() * 2*numpy.pi
-		polar_angle = numpy.random.random() * numpy.pi
-		x = numpy.sin(polar_angle) * numpy.cos(azimuthal_angle)
-		y = numpy.sin(polar_angle) * numpy.sin(azimuthal_angle)
-		z = numpy.cos(polar_angle)
-		return numpy.array( [x,y,z] )*self.DIRECTION_NORMS '''
 		return normalise( numpy.array( [numpy.random.random()-0.5, numpy.random.random()-0.5, 1.0] ))
-
-	def OLDaddSignal(self):
-		'''Adds one signal track into the input 3D array space.'''
-		position = numpy.array(self.DIMENSIONS) * numpy.random.normal(loc=0.5, scale=0.1, size=3)	#the track begins in the middle of the space
-		direction = self.sampleInitSignalDirection()
-		cumulation_stop_probability = 0
-		while not self.isCoordOutOfBounds(position) and numpy.random.random() > cumulation_stop_probability:	#the track propagades until it moves out of the space boundaries
-			self.space[self.discretise(position)] = 1
-			if numpy.random.random() < self.SIGNAL_CHANGE_DIRECTION_PROBABILITY:	self.updateDirection(direction)
-			position += direction
-			cumulation_stop_probability += self.SIGNAL_STOP_PROBABILITY
-		coord = numpy.nonzero(self.space)
-		self.space[coord] = numpy.clip( numpy.random.normal(self.SIGNAL_ENERGY, self.SIGNAL_ENERGY/3, coord[0].shape), 0, None)
-
-	def OLDaddNoise(self):
-		'''Adds several noise tracks into the input 3D array space.'''
-		num_of_traces = 20
-		for _ in range(num_of_traces):
-			position = (numpy.array(self.DIMENSIONS) - 1) * numpy.random.random(size=3)
-			direction = numpy.zeros(3)
-			self.updateDirection(direction)
-			energy = self.NOISE_ENERGY
-			while energy > 0:	#the particle moves until it loses all the energy or it moves out of the space
-				lost_energy = numpy.clip( numpy.random.exponential(self.ENERGY_DEPOSITION_COEFFITIENT), 0, 1)
-				self.space[self.discretise(position)] += lost_energy
-				energy -= lost_energy
-				if numpy.random.random() < self.NOISE_CHANGE_DIRECTION_PROBABILITY:	self.updateDirection(direction)
-				position += direction
-				if self.isCoordOutOfBounds(position):	break
 
 	def addSignal(self):
 		'''Adds one signal track into the input 3D array space.'''
@@ -118,7 +79,7 @@ class Generator:
 			self.space[self.discretise(position)] += 1
 			if numpy.random.random() < self.SIGNAL_CHANGE_DIRECTION_PROBABILITY:	self.updateDirection(direction)
 			position += direction
-		coord = numpy.nonzero(self.space)
+		coord = numpy.nonzero(self.space)	#visited coordinates
 		self.space[coord] *= numpy.clip( numpy.random.normal(self.SIGNAL_ENERGY, self.SIGNAL_ENERGY/3, coord[0].shape), 0, None)
 
 	def addNoise(self):
@@ -134,7 +95,7 @@ class Generator:
 		signal_names = ["_signal_zy", "_signal_zx", "_signal_yx"]
 		file_size = 20000
 
-		increment = len(os.listdir(self.DATA_DIR_PATH)) // 6
+		increment = len(os.listdir(self.DATA_DIR_PATH)) // 6	#some datafiles might be already in the directory, this ensures they will not be overwritten
 
 		file_num = iterations // file_size
 		for file_i in range(file_num):
@@ -235,11 +196,12 @@ class Support:
 		matplotlib.pyplot.show()
 
 
-#generator = Generator()
-#generator.genAndDumpData(int(5e6))
-#showRandomData()
+'''
+generator = Generator()
+generator.genAndDumpData(int(1e6))
+'''
 
-
+'''
 generator = Generator()
 while True:
 	generator.addSignal()
@@ -249,3 +211,4 @@ while True:
 	Support.showProjections(generator.space, [0,1,2])
 	if input() == "q":	break
 	else:	generator.initialise()
+'''
