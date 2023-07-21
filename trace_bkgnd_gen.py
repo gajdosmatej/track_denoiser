@@ -14,7 +14,7 @@ def normalise(arr :numpy.ndarray):
 class Generator:
 	DIMENSIONS = (12, 14, 208)
 	CURVATURE_SIGMA = 0.05	#sigma of normal distribution, which updateDirection samples R3 vector from
-	DIRECTION_NORMS = numpy.array([0.7,0.7,1.0])	#factors which multiply each coordinate of direction unit vector (main aim is to increase velocity in Z direction in order to compensate dim_Z >> dim_X, dim_Y)
+	DIRECTION_NORMS = numpy.array([0.5,0.5,1.0])	#factors which multiply each coordinate of direction unit vector (main aim is to increase velocity in Z direction in order to compensate dim_Z >> dim_X, dim_Y)
 	SIGNAL_ENERGY = 1	#signal deposits this value in every point of lattice which it visits
 	NOISE_ENERGY = 1.3	#the total sum of values that noise can deposit in visited points of lattice
 	ENERGY_DEPOSITION_COEFFITIENT = 0.4	#the coefficient of the exponential distribution, which noise samples a random value from and deposits it in the visited point of lattice
@@ -68,13 +68,15 @@ class Generator:
 		return (position, direction)
 
 	def sampleInitSignalDirection(self):
-		'''Samples signal direction vector uniformly in spherical coordinates, so that the z axis (zenith) direction is biased.'''
-		azimuthal_angle = numpy.random.random() * 2*numpy.pi
+		'''Samples signal direction vector with bias in z axis.'''
+		#Samples signal direction vector uniformly in spherical coordinates, so that the z axis (zenith) direction is biased.'''
+		'''azimuthal_angle = numpy.random.random() * 2*numpy.pi
 		polar_angle = numpy.random.random() * numpy.pi
 		x = numpy.sin(polar_angle) * numpy.cos(azimuthal_angle)
 		y = numpy.sin(polar_angle) * numpy.sin(azimuthal_angle)
 		z = numpy.cos(polar_angle)
-		return numpy.array( [x,y,z] )*self.DIRECTION_NORMS 
+		return numpy.array( [x,y,z] )*self.DIRECTION_NORMS '''
+		return normalise( numpy.array( [numpy.random.random()-0.5, numpy.random.random()-0.5, 1.0] ))
 
 	def OLDaddSignal(self):
 		'''Adds one signal track into the input 3D array space.'''
@@ -109,12 +111,13 @@ class Generator:
 		'''Adds one signal track into the input 3D array space.'''
 		position = numpy.array(self.DIMENSIONS) * numpy.random.normal(loc=0.5, scale=0.1, size=3)	#the track begins in the middle of the space
 		direction = self.sampleInitSignalDirection()
-		cumulation_stop_probability = 0.005
-		while not self.isCoordOutOfBounds(position) and numpy.random.random() > cumulation_stop_probability:	#the track propagades until it moves out of the space boundaries
+		num_steps = int(numpy.random.normal(loc=50, scale=1))
+
+		for _ in range(num_steps):
+			if self.isCoordOutOfBounds(position):	break
 			self.space[self.discretise(position)] += 1
 			if numpy.random.random() < self.SIGNAL_CHANGE_DIRECTION_PROBABILITY:	self.updateDirection(direction)
 			position += direction
-			cumulation_stop_probability += self.SIGNAL_STOP_PROBABILITY*cumulation_stop_probability
 		coord = numpy.nonzero(self.space)
 		self.space[coord] *= numpy.clip( numpy.random.normal(self.SIGNAL_ENERGY, self.SIGNAL_ENERGY/3, coord[0].shape), 0, None)
 
@@ -232,8 +235,8 @@ class Support:
 		matplotlib.pyplot.show()
 
 
-generator = Generator()
-generator.genAndDumpData(int(5e6))
+#generator = Generator()
+#generator.genAndDumpData(int(5e6))
 #showRandomData()
 
 
@@ -243,6 +246,6 @@ while True:
 	Support.show3D(generator.space)
 	generator.addNoise()
 	Support.show3D(generator.space)
-	Support.showProjections(generator.space, [1,2])
+	Support.showProjections(generator.space, [0,1,2])
 	if input() == "q":	break
 	else:	generator.initialise()
