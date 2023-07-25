@@ -106,17 +106,39 @@ class Generator:
 				self.initialise()
 				self.addSignal()
 				for k in range(3):
-					data_signal[k].append(getProjection(self.space, k))
+					data_signal[k].append( normalise(getProjection(self.space, k)) )
 				self.addNoise()
 
 				for k in range(3):
-					data_noise[k].append(getProjection(self.space, k))
+					data_noise[k].append( normalise(getProjection(self.space, k)) )
 			print("Saving batch...")
 			for k in range(3):
-				data_noise[k] = normalise(data_noise[k])
-				data_signal[k] = normalise(data_signal[k])
 				numpy.save(self.DATA_DIR_PATH + str(increment+file_i) + noise_names[k], data_noise[k])
 				numpy.save(self.DATA_DIR_PATH + str(increment+file_i) + signal_names[k], data_signal[k])
+
+	def genAndDumpData3D(self, iterations :int):
+		'''Generates space 3D array with one signal and several noises in each iteration and saves the clean and noised data.'''
+		noise_name = "_noise_3d"
+		signal_name = "_signal_3d"
+		file_size = 5000
+
+		increment = len(os.listdir(self.DATA_DIR_PATH)) // 2	#some datafiles might be already in the directory, this ensures they will not be overwritten
+
+		file_num = iterations // file_size
+		for file_i in range(file_num):
+			data_noise, data_signal = [], []
+			print("Generating data...")
+			for i in range(file_size):
+				if i % 1000 == 0:	print("{:,}".format(file_i *file_size + i), "/", "{:,}".format(iterations))
+				self.initialise()
+				self.addSignal()
+				data_signal.append(self.space / numpy.max(self.space))
+				self.addNoise()
+				data_noise.append(self.space / numpy.max(self.space))
+
+			print("Saving batch...")
+			numpy.save(self.DATA_DIR_PATH + str(increment+file_i) + noise_name, data_noise)
+			numpy.save(self.DATA_DIR_PATH + str(increment+file_i) + signal_name, data_signal)
 
 class Support:
 	@staticmethod
@@ -196,10 +218,10 @@ class Support:
 		matplotlib.pyplot.show()
 
 
-'''
+
 generator = Generator()
-generator.genAndDumpData(int(1e6))
-'''
+#generator.genAndDumpData(int(1e6))
+generator.genAndDumpData3D(int(1e5))
 
 '''
 generator = Generator()
