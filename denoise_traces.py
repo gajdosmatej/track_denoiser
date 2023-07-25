@@ -1,5 +1,6 @@
 import numpy
 from tensorflow import keras
+import tensorflow
 import matplotlib.pyplot
 import keras.utils
 import os
@@ -12,18 +13,25 @@ class DataLoader:
 		self.start_file = start_file
 		self.end_file = end_file
 		self.batch_size = 500
+		shapes_dict = {"zx": (12,208,1), "zy": (14,208,1), "yx": (14,12,1)}
+		self.shape = shapes_dict[plane]
 
-	def getDataBatch(self):
-		batch_fsize_ratio = 20000 // self.batch_size
+	def dataPairLoad(self):
 		while True:
-			file_i = numpy.random.randint(self.start_file, self.end_file)
-			signal = numpy.load(self.path + str(file_i) + "_signal_" + self.plane + ".npy")
-			noise = numpy.load(self.path + str(file_i) + "_noise_" + self.plane + ".npy")
-			
-			indices = numpy.arange(batch_fsize_ratio)
-			numpy.random.shuffle(indices)
-			for row_i in indices:
-				yield (noise[row_i*self.batch_size:(row_i+1)*self.batch_size], signal[row_i*self.batch_size:(row_i+1)*self.batch_size])
+			order = numpy.arange(self.start_file, self.end_file)
+			numpy.random.shuffle(order)
+			for id in order:
+				signal_batch = numpy.load("./data/simulated/" + str(id) + "_signal_" + self.plane + ".npy")
+				noise_batch = numpy.load("./data/simulated/" + str(id) + "_noise_" + self.plane + ".npy")
+				for i in range(20000):
+					yield ( numpy.reshape(noise_batch[i], self.shape), numpy.reshape(signal_batch[i], self.shape))
+	
+	def getDataset(self):
+		return tensorflow.data.Dataset.from_generator(self.dataPairLoad, output_signature = 
+						(	tensorflow.TensorSpec(shape=self.shape, dtype=tensorflow.float32), 
+							tensorflow.TensorSpec(shape=self.shape, dtype=tensorflow.float32))
+						).shuffle(100, reshuffle_each_iteration=True).batch(50).prefetch(2)
+
 
 class Model:
 	def __init__(self, plane=None):
