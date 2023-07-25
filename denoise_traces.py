@@ -21,8 +21,8 @@ class DataLoader:
 			order = numpy.arange(self.start_file, self.end_file)
 			numpy.random.shuffle(order)
 			for id in order:
-				signal_batch = numpy.load("./data/simulated/" + str(id) + "_signal_" + self.plane + ".npy")
-				noise_batch = numpy.load("./data/simulated/" + str(id) + "_noise_" + self.plane + ".npy")
+				signal_batch = numpy.load(self.path + str(id) + "_signal_" + self.plane + ".npy")
+				noise_batch = numpy.load(self.path + str(id) + "_noise_" + self.plane + ".npy")
 				for i in range(20000):
 					yield ( numpy.reshape(noise_batch[i], self.shape), numpy.reshape(signal_batch[i], self.shape))
 	
@@ -66,16 +66,16 @@ class Model:
 	def chooseModelZX(self):
 		self.type = "zx"
 		self.model = keras.Sequential([	keras.layers.Input(shape=(12,208,1)),
-									keras.layers.Conv2D(padding="same", strides=(1,1), kernel_size=(3,5), filters=32, activation="relu"),
+									keras.layers.Conv2D(padding="same", strides=(1,1), kernel_size=(3,10), filters=64, activation="relu"),
 									keras.layers.MaxPool2D(pool_size = (1,2)),
-									keras.layers.Conv2D(padding="same", strides=(1,1), kernel_size=(3,4), filters=64, activation="relu"),
+									keras.layers.Conv2D(padding="same", strides=(1,1), kernel_size=(3,8), filters=64, activation="relu"),
 									keras.layers.MaxPool2D(pool_size = (2,2)),
-									keras.layers.Conv2D(padding="same", strides=(1,1), kernel_size=(3,3), filters=128, activation="relu"),
+									keras.layers.Conv2D(padding="same", strides=(1,1), kernel_size=(3,5), filters=128, activation="relu"),
 									keras.layers.UpSampling2D(size = (2,2)),
-									keras.layers.Conv2D(padding="same", strides=(1,1), kernel_size=(3,4), filters=64, activation="relu"),
+									keras.layers.Conv2D(padding="same", strides=(1,1), kernel_size=(3,8), filters=64, activation="relu"),
 									keras.layers.UpSampling2D(size = (1,2)),
-									keras.layers.Conv2D(padding="same", strides=(1,1), kernel_size=(3,5), filters=32, activation="relu"),
-									keras.layers.Dense(units=1, activation="sigmoid") ])
+									keras.layers.Conv2D(padding="same", strides=(1,1), kernel_size=(3,10), filters=64, activation="relu"),
+									keras.layers.Conv2D(padding="same", strides=(1,1), kernel_size=(3,10), filters=1, activation="sigmoid")])
 
 	def estimate(self, data_point :numpy.ndarray):
 		'''Returns the output of the CNN call on input \'datapoint\'.'''
