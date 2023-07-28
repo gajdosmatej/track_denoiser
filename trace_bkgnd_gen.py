@@ -15,12 +15,12 @@ class Generator:
 	DIMENSIONS = (12, 14, 208)
 	CURVATURE_SIGMA = 0.05	#sigma of normal distribution, which updateDirection samples R3 vector from
 	DIRECTION_NORMS = numpy.array([0.5,0.5,1.0])	#factors which multiply each coordinate of direction unit vector (main aim is to increase velocity in Z direction in order to compensate dim_Z >> dim_X, dim_Y)
-	SIGNAL_ENERGY = 1	#signal deposits this value in every point of lattice which it visits
+	SIGNAL_ENERGY = 2	#signal deposits this value in every point of lattice which it visits
 	SIGNAL_CHANGE_DIRECTION_PROBABILITY = 0.1	#the signal probability that updateDirection is called in a step
-	NOISE_TRACKS_NUM_RANGE = (15,31)	#the minimal and maximal number of noise tracks
+	NOISE_TRACKS_NUM_RANGE = (40,81)	#the minimal and maximal number of noise tracks
 	DATA_DIR_PATH = "./data/simulated/"
-	NOISE_MEAN_ENERGY = 0.5
-	NOISE_SIGMA_ENERGY = 0.3
+	NOISE_MEAN_ENERGY = 1.4
+	NOISE_SIGMA_ENERGY = 0.6
 
 	def __init__(self):
 		self.initialise()
@@ -80,7 +80,7 @@ class Generator:
 			if numpy.random.random() < self.SIGNAL_CHANGE_DIRECTION_PROBABILITY:	self.updateDirection(direction)
 			position += direction
 		coord = numpy.nonzero(self.space)	#visited coordinates
-		self.space[coord] *= numpy.clip( numpy.random.normal(self.SIGNAL_ENERGY, self.SIGNAL_ENERGY/3, coord[0].shape), 0, None)
+		self.space[coord] *= numpy.clip( numpy.random.normal(self.SIGNAL_ENERGY, 0.6*self.SIGNAL_ENERGY, coord[0].shape), 0, None)
 
 	def addNoise(self):
 		'''Adds several noise tracks into the input 3D array space.'''
@@ -95,7 +95,7 @@ class Generator:
 		signal_names = ["_signal_zy", "_signal_zx", "_signal_yx"]
 		file_size = 20000
 
-		increment = len(os.listdir(self.DATA_DIR_PATH)) // 6	#some datafiles might be already in the directory, this ensures they will not be overwritten
+		increment = len(os.listdir(self.DATA_DIR_PATH + "2D")) // 6	#some datafiles might be already in the directory, this ensures they will not be overwritten
 
 		file_num = iterations // file_size
 		for file_i in range(file_num):
@@ -113,8 +113,8 @@ class Generator:
 					data_noise[k].append( normalise(getProjection(self.space, k)) )
 			print("Saving batch...")
 			for k in range(3):
-				numpy.save(self.DATA_DIR_PATH + str(increment+file_i) + noise_names[k], data_noise[k])
-				numpy.save(self.DATA_DIR_PATH + str(increment+file_i) + signal_names[k], data_signal[k])
+				numpy.save(self.DATA_DIR_PATH + "2D/" + str(increment+file_i) + noise_names[k], data_noise[k])
+				numpy.save(self.DATA_DIR_PATH + "2D/" + str(increment+file_i) + signal_names[k], data_signal[k])
 
 	def genAndDumpData3D(self, iterations :int):
 		'''Generates space 3D array with one signal and several noises in each iteration and saves the clean and noised data.'''
@@ -122,7 +122,7 @@ class Generator:
 		signal_name = "_signal_3d"
 		file_size = 5000
 
-		increment = len(os.listdir(self.DATA_DIR_PATH)) // 2	#some datafiles might be already in the directory, this ensures they will not be overwritten
+		increment = len(os.listdir(self.DATA_DIR_PATH + "3D")) // 2	#some datafiles might be already in the directory, this ensures they will not be overwritten
 
 		file_num = iterations // file_size
 		for file_i in range(file_num):
@@ -137,8 +137,8 @@ class Generator:
 				data_noise.append(self.space / numpy.max(self.space))
 
 			print("Saving batch...")
-			numpy.save(self.DATA_DIR_PATH + str(increment+file_i) + noise_name, data_noise)
-			numpy.save(self.DATA_DIR_PATH + str(increment+file_i) + signal_name, data_signal)
+			numpy.save(self.DATA_DIR_PATH + "3D/" + str(increment+file_i) + noise_name, data_noise)
+			numpy.save(self.DATA_DIR_PATH + "3D/" + str(increment+file_i) + signal_name, data_signal)
 
 class Support:
 	@staticmethod
@@ -219,15 +219,16 @@ class Support:
 
 
 
-generator = Generator()
+#generator = Generator()
 #generator.genAndDumpData(int(1e6))
-generator.genAndDumpData3D(int(1e5))
+#generator.genAndDumpData3D(int(1e5))
 
 '''
 generator = Generator()
 while True:
 	generator.addSignal()
 	Support.show3D(generator.space)
+	Support.showProjections(generator.space, [0,1,2])
 	generator.addNoise()
 	Support.show3D(generator.space)
 	Support.showProjections(generator.space, [0,1,2])
