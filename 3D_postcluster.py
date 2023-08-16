@@ -6,14 +6,93 @@ import json
 import os
 import matplotlib.pyplot
 import preprocess_data
+import tensorflow
 
-names_projections = 	{ "zy": "./data/data_noise_zy.npy",
-						"zx": "./data/data_noise_zx.npy",
-						"yx": "./data/data_noise_yx.npy" }
 
-names_projections_sgnl = 	{ "zy": "./data/data_signal_zy.npy",
-							"zx": "./data/data_signal_zx.npy",
-							"yx": "./data/data_signal_yx.npy" }
+def findThreshold(model, path):
+	signals = numpy.load("data/simulated/3D/0_signal_3d.npy")
+	noises = numpy.load("data/simulated/3D/0_noise_3d.npy")
+	data_num = signals.shape[0]
+	signals_map = signals>0.0001
+
+	print(">> Estimating the real counts of signal and noise tiles...")
+	num_sgn = numpy.zeros(shape=data_num)
+	num_noise = numpy.zeros(shape=data_num)
+	for i in range(data_num):
+		num_sgn[i] = numpy.sum( numpy.where(signals[i] > 0.0001, 1, 0) )
+		num_noise[i] = numpy.sum( numpy.where(noises[i] > 0.0001, 1, 0) ) - num_sgn[i]
+
+	print(">> Reconstructing testing data...")
+	reconstructions = model.predict( numpy.reshape(noises, (*noises.shape, 1)) )
+
+	print(">> Trying several thresholds:")
+	'''num_steps = 5
+	leading_coeff = 0.5
+	best_effunc = -numpy.Infinity
+	best_threshold = 0
+	for exponent in range(num_steps):
+		best_new_leading = leading_coeff
+		best_curr_effunc = best_effunc
+		for i in range(-5, 6):
+			threshold = numpy.round( leading_coeff + i * 10**(-exponent-1), 2+exponent)
+			print(">> Thr = " + str(threshold))
+			binary_reconstructions = numpy.where(reconstructions > threshold, 1, 0)
+			rhos = numpy.zeros(shape=data_num)
+			sigmas = numpy.zeros(shape=data_num)
+			for j in range(data_num):
+				binary_remaining_signal = numpy.sum(binary_reconstructions[j][signals_map[j]])
+				binary_remaining_noise = numpy.sum(binary_reconstructions[j]) - binary_remaining_signal
+				rhos[j] = binary_remaining_signal / num_sgn[j]
+				sigmas[j] = binary_remaining_noise / num_noise[j]
+			mean_rho, mean_sigma = numpy.mean(rhos), numpy.mean(sigmas)
+			effunc = mean_rho - mean_sigma
+			print(">>> Reconstructed signal ratio: " + str(mean_rho) + ", Remaining noise: " + str(mean_sigma) + ", effuc: " + str(effunc))
+			if effunc > best_curr_effunc:
+				best_new_leading = threshold
+				best_curr_effunc = effunc
+		if best_curr_effunc > best_effunc:
+			best_effunc = best_curr_effunc
+			best_threshold = best_new_leading
+		leading_coeff = best_new_leading'''
+	
+	num_steps = 100
+	optimised_func_vals = numpy.zeros(num_steps)
+	mean_rhos = []
+	mean_sigmas = []
+
+	for i in range(num_steps):
+		threshold = i/(2*num_steps)
+		print(">>> Threshold", threshold)
+		binary_reconstructions = numpy.where(reconstructions > threshold, 1, 0)
+		rhos = numpy.zeros(shape=data_num)
+		sigmas = numpy.zeros(shape=data_num)
+		for j in range(data_num):
+			binary_remaining_signal = numpy.sum(binary_reconstructions[j][signals_map[j]])
+			binary_remaining_noise = numpy.sum(binary_reconstructions[j]) - binary_remaining_signal
+			rhos[j] = binary_remaining_signal / num_sgn[j]
+			sigmas[j] = binary_remaining_noise / num_noise[j]
+		mean_rho, mean_sigma = numpy.mean(rhos), numpy.mean(sigmas)
+		mean_rhos.append(mean_rho)
+		mean_sigmas.append(mean_sigma)
+		optimised_func_vals[i] = mean_rho - mean_sigma
+		print(">>> Reconstructed signal ratio: " + str(mean_rho) + ", Remaining noise: " + str(mean_sigma) + ", Optimised function: " + str(mean_rho - mean_sigma))
+
+	best_threshold = numpy.argmax(optimised_func_vals) / (2*num_steps)
+	print("> Best threshold is", best_threshold)
+	f = open(path + "threshold.txt", "w")
+	f.write( str(best_threshold) )
+	f.close()
+
+	matplotlib.pyplot.plot(mean_sigmas, mean_rhos, ".-b")
+	matplotlib.pyplot.title("Threshold Classifier ROC")
+	matplotlib.pyplot.xlabel("Fraction of Unfiltered Background Tiles")
+	matplotlib.pyplot.ylabel("Fraction of Reconstructed Signal Tiles")
+	matplotlib.pyplot.xlim(0,1)
+	matplotlib.pyplot.ylim(0,1)
+	matplotlib.pyplot.savefig(path + "ROC.pdf", bbox_inches='tight')
+	matplotlib.pyplot.clf()
+	return best_threshold
+
 
 def postprocessModel(path):
 	print("> Loading model...")
@@ -25,49 +104,70 @@ def postprocessModel(path):
 		model.summary(print_fn = lambda x: print(x, file=f))
 
 
+	print("> Finding optimal classification threshold...")
+	threshold = findThreshold(model, path)
+
 	print("> Plotting examples of reconstruction...")
 
 	x17 = [event for (_, event) in preprocess_data.loadX17Data("goodtracks")]
-	example_indices = [0, 12, 21]
-	for i in range(3):
+	example_indices = [0, 12, 21, 33]
+	for i in range(4):
 		noisy = x17[example_indices[i]]
 		noisy = noisy / numpy.max(noisy)
-		noisy = numpy.reshape( noisy, (1,12,14,208,1))
+		noisy_input = numpy.reshape( noisy, (1,12,14,208,1))
 
-		reconstr = numpy.reshape(model(noisy)[0], (12,14,208))
-		noisy = numpy.reshape(noisy[0], (12,14,208))
-		fig, ax = matplotlib.pyplot.subplots(3, 2)
+		reconstr = numpy.reshape(model(noisy_input)[0], (12,14,208))
+		classificated = numpy.where(reconstr > threshold, 1, 0)
+		fig, ax = matplotlib.pyplot.subplots(3, 3)
 
 		#ax[0][1].imshow(numpy.sum(reconstr, axis=0), cmap="gray", norm=matplotlib.colors.LogNorm() )
+		ax[0][0].imshow(numpy.sum(noisy, axis=0), cmap="gray", vmin=0, vmax=1)
+		#ax[0][0].set_title("Noisy, ZY Projection")
+		ax[0][0].set_title("Noisy")
+		ax[0][0].set_xlabel("z")
+		ax[0][0].set_ylabel("y")
+		
 		ax[0][1].imshow(numpy.sum(reconstr, axis=0), cmap="gray", vmin=0, vmax=1)
-		ax[0][1].set_title("Reconstruction, ZY Projection")
+		#ax[0][1].set_title("Raw Reconstruction, ZY Projection")
+		ax[0][1].set_title("Raw Reconstruction")
 		ax[0][1].set_xlabel("z")
 		ax[0][1].set_ylabel("y")
 
-		ax[0][0].imshow(numpy.sum(noisy, axis=0), cmap="gray", vmin=0, vmax=1)
-		ax[0][0].set_title("Noisy, ZY Projection")
-		ax[0][0].set_xlabel("z")
-		ax[0][0].set_ylabel("y")
-
-		ax[1][1].imshow(numpy.sum(reconstr, axis=1), cmap="gray", vmin=0, vmax=1)
-		ax[1][1].set_title("Reconstruction, ZX Projection")
-		ax[1][1].set_xlabel("z")
-		ax[1][1].set_ylabel("x")
+		ax[0][2].imshow(numpy.sum(classificated, axis=0), cmap="gray", vmin=0, vmax=1)
+		#ax[0][2].set_title("Reconstruction after Treshold, ZY Projection")
+		ax[0][2].set_title("Reconstruction + Thr")
+		ax[0][2].set_xlabel("z")
+		ax[0][2].set_ylabel("y")
 
 		ax[1][0].imshow(numpy.sum(noisy, axis=1), cmap="gray", vmin=0, vmax=1)
-		ax[1][0].set_title("Noisy, ZX Projection")
+		#ax[1][0].set_title("Noisy, ZX Projection")
 		ax[1][0].set_xlabel("z")
 		ax[1][0].set_ylabel("x")
 
+		ax[1][1].imshow(numpy.sum(reconstr, axis=1), cmap="gray", vmin=0, vmax=1)
+		#ax[1][1].set_title("Reconstruction, ZX Projection")
+		ax[1][1].set_xlabel("z")
+		ax[1][1].set_ylabel("x")
+
+		ax[1][2].imshow(numpy.sum(classificated, axis=1), cmap="gray", vmin=0, vmax=1)
+		#ax[1][2].set_title("Reconstruction after Treshold, ZX Projection")
+		ax[1][2].set_xlabel("z")
+		ax[1][2].set_ylabel("x")
+
+		ax[2][0].imshow(numpy.sum(noisy, axis=2), cmap="gray", vmin=0, vmax=1)
+		#ax[2][0].set_title("Noisy, YX Projection")
+		ax[2][0].set_xlabel("y")
+		ax[2][0].set_ylabel("x")
+
 		ax[2][1].imshow(numpy.sum(reconstr, axis=2), cmap="gray", vmin=0, vmax=1)
-		ax[2][1].set_title("Reconstruction, YX Projection")
+		#ax[2][1].set_title("Reconstruction, YX Projection")
 		ax[2][1].set_xlabel("y")
 		ax[2][1].set_ylabel("x")
 
-		ax[2][0].imshow(numpy.sum(noisy, axis=2), cmap="gray", vmin=0, vmax=1)
-		ax[2][0].set_title("Noisy, YX Projection")
-		ax[2][0].set_xlabel("y")
-		ax[2][0].set_ylabel("x")
+		ax[2][2].imshow(numpy.sum(classificated, axis=2), cmap="gray", vmin=0, vmax=1)
+		#ax[2][2].set_title("Reconstruction after Treshold, YX Projection")
+		ax[2][2].set_xlabel("y")
+		ax[2][2].set_ylabel("x")
 
 		matplotlib.pyplot.savefig(path + "example_reconstruction" + str(i) + ".pdf", bbox_inches="tight")
 		matplotlib.pyplot.clf()
@@ -200,6 +300,17 @@ if name == "ALL":
 	for model_name in os.listdir("./models/3D/"):
 		print("-------------------------------------")
 		print("> PROCESSING MODEL " + model_name + " [" + str(counter) + "/" + str(num_all) + "]")
+		print("-------------------------------------")
+		postprocessModel("./models/3D/" + model_name + "/")
+		counter += 1
+elif name == "NEW":
+	counter = 1
+	for model_name in os.listdir("./models/3D/"):
+		print("-------------------------------------")
+		if "architecture.txt" in os.listdir("./models/3D/" + model_name):
+			print("> SKIPPING MODEL " + model_name)
+		else:
+			print("> PROCESSING MODEL " + model_name)
 		print("-------------------------------------")
 		postprocessModel("./models/3D/" + model_name + "/")
 		counter += 1
