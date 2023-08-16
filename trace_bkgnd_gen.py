@@ -9,7 +9,8 @@ def getProjection(space :numpy.ndarray, axis :int):
 
 def normalise(arr :numpy.ndarray):
 	'''Linearly maps values of input array to [0,1]'''
-	return arr/numpy.max(arr)
+	M =  numpy.max(arr)
+	return arr / (1 if M == 0 else M)
 
 
 class Generator:
@@ -18,16 +19,17 @@ class Generator:
 	DIRECTION_NORMS = numpy.array([0.5,0.5,1.0])	#factors which multiply each coordinate of direction unit vector (main aim is to increase velocity in Z direction in order to compensate dim_Z >> dim_X, dim_Y)
 	SIGNAL_ENERGY = 2	#signal deposits this value in every point of lattice which it visits
 	SIGNAL_CHANGE_DIRECTION_PROBABILITY = 0.1	#the signal probability that updateDirection is called in a step
-	NOISE_TRACKS_NUM_RANGE = (40,81)	#the minimal and maximal number of noise tracks
+	NOISE_TRACKS_NUM_RANGE = (20,50)	#the minimal and maximal number of noise tracks
 	DATA_DIR_PATH = "./data/simulated/"
 	NOISE_MEAN_ENERGY = 1.4
 	NOISE_SIGMA_ENERGY = 0.6
+	MAX_NOISE_STEPS = 7
 
 	def __init__(self):
 		self.initialise()
 
 	def initialise(self):
-		self.space = numpy.zeros(self.DIMENSIONS)
+		self.space = numpy.zeros(self.DIMENSIONS, dtype=numpy.float16)
 
 	def updateDirection(self, direction :numpy.ndarray):
 		'''Randomly updates the direction vector.'''
@@ -88,7 +90,13 @@ class Generator:
 		num_of_traces = numpy.random.randint( *self.NOISE_TRACKS_NUM_RANGE )
 		for _ in range(num_of_traces):
 			position = (numpy.array(self.DIMENSIONS) - 1) * numpy.random.random(size=3)
-			self.space[self.discretise(position)] += numpy.clip( numpy.random.normal(loc=self.NOISE_MEAN_ENERGY, scale=self.NOISE_SIGMA_ENERGY), 0, None)
+			steps = numpy.random.randint(1, self.MAX_NOISE_STEPS)
+			direction = numpy.random.random(3) * self.DIRECTION_NORMS
+			for _ in range(steps):
+				self.space[self.discretise(position)] += numpy.clip( numpy.random.normal(loc=self.NOISE_MEAN_ENERGY, scale=self.NOISE_SIGMA_ENERGY), 0, None)
+				position += direction
+				if self.isCoordOutOfBounds(position):	break
+				self.updateDirection(direction)
 
 	def genAndDumpData(self, iterations :int):
 		'''Generates space 3D array with one signal and several noises in each iteration and saves the projections of the clean and noised data.'''
@@ -133,9 +141,9 @@ class Generator:
 				if i % 1000 == 0:	print("{:,}".format(file_i *file_size + i), "/", "{:,}".format(iterations))
 				self.initialise()
 				self.addSignal()
-				data_signal.append(self.space / numpy.max(self.space))
+				data_signal.append(normalise(self.space))
 				self.addNoise()
-				data_noise.append(self.space / numpy.max(self.space))
+				data_noise.append(normalise(self.space))
 
 			print("Saving batch...")
 			numpy.save(self.DATA_DIR_PATH + "3D/" + str(increment+file_i) + noise_name, data_noise)
