@@ -48,33 +48,39 @@ class DataLoader:
 
 class Plotting:
 	@staticmethod
-	def plotEvent(noisy, reconstruction, classificated = None, are_data_experimental = None, model_name = ''):
+	def plotEvent(noisy, reconstruction, classificated = None, are_data_experimental = None, model_name = '', axes=[0,1,2]):
 		if classificated is None:
-			fig, ax = matplotlib.pyplot.subplots(3, 2)
+			fig, ax = matplotlib.pyplot.subplots(len(axes), 2)
 		else:
-			fig, ax = matplotlib.pyplot.subplots(3, 3)
-		
-		ax[0][0].imshow(numpy.sum(noisy, axis=0), cmap="gray", vmin=0, vmax=1 )
-		ax[0][0].set_title("Noisy")
-		ax[0][1].imshow(numpy.sum(reconstruction, axis=0), cmap="gray", vmin=0, vmax=1 )
-		ax[0][1].set_title("Raw Reconstruction")
-		ax[1][0].imshow(numpy.sum(noisy, axis=1), cmap="gray", vmin=0, vmax=1 )
-		ax[1][1].imshow(numpy.sum(reconstruction, axis=1), cmap="gray", vmin=0, vmax=1 )
-		ax[2][0].imshow(numpy.sum(noisy, axis=2), cmap="gray", vmin=0, vmax=1 )
-		ax[2][1].imshow(numpy.sum(reconstruction, axis=2), cmap="gray", vmin=0, vmax=1 )
+			fig, ax = matplotlib.pyplot.subplots(len(axes), 3)
+
+
+		x_labels = ['y', 'x', 'x']
+		y_labels = ['z', 'z', 'y']
+		for i in range(len(axes)):
+			axis = axes[i]
+			ax[i][0].set_title("Noisy")
+			ax[i][0].imshow(numpy.sum(noisy, axis=axis), cmap="gray", vmin=0, vmax=1 )
+			ax[i][0].set_xlabel(x_labels[axis])
+			ax[i][0].set_ylabel(y_labels[axis])
+			ax[i][1].set_title("Raw Reconstruction")
+			ax[i][1].imshow(numpy.sum(reconstruction, axis=axis), cmap="gray", vmin=0, vmax=1 )
+			ax[i][1].set_xlabel(x_labels[axis])
+			ax[i][1].set_ylabel(y_labels[axis])
 
 		if classificated is not None:
-			ax[0][2].imshow(numpy.sum(classificated, axis=0), cmap="gray", vmin=0, vmax=1 )
-			ax[0][2].set_title("After Threshold")
-			ax[2][2].imshow(numpy.sum(classificated, axis=2), cmap="gray", vmin=0, vmax=1 )
-			ax[1][2].imshow(numpy.sum(classificated, axis=1), cmap="gray", vmin=0, vmax=1 )
-
+			for i in range(len(axes)):
+				axis = axes[i]
+				ax[i][2].set_title("After Threshold")
+				ax[i][2].imshow(numpy.sum(classificated, axis=axis), cmap="gray", vmin=0, vmax=1 )
+				ax[i][2].set_xlabel(x_labels[axis])
+				ax[i][2].set_ylabel(y_labels[axis])
+			
 		title = "Reconstruction of "
 		if are_data_experimental:	title += "experimental "
 		elif are_data_experimental is False:	title += "generated "
 		title += "data by model " + model_name
 		fig.suptitle(title)
-		fig.show()
 
 	@staticmethod
 	def plotRandomData(model :keras.Model, noise_data :numpy.ndarray, are_data_experimental :bool = None, model_name :str = "", threshold :float = None):
@@ -89,10 +95,10 @@ class Plotting:
 
 			if threshold != None:
 				classif = numpy.where(reconstr > threshold, 1, 0)
-				Plotting.plotEvent(noisy, reconstr, classif, are_data_experimental, model_name)
+				Plotting.plotEvent(noisy, reconstr, classif, are_data_experimental, model_name, axes = [0,1,2])
 			else:
-				Plotting.plotEvent(noisy, reconstr, None, are_data_experimental, model_name)
-
+				Plotting.plotEvent(noisy, reconstr, None, are_data_experimental, model_name, axes = [0,1,2])
+			matplotlib.pyplot.show()
 			if input("Enter 'q' to stop plotting (or anything else for another plot):") == "q":	break
 			
 
