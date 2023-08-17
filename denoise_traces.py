@@ -77,9 +77,9 @@ class Plotting:
 				ax[i][2].set_ylabel(y_labels[axis])
 			
 		title = "Reconstruction of "
-		if are_data_experimental:	title += "experimental "
-		elif are_data_experimental is False:	title += "generated "
-		title += "data by model " + model_name
+		if are_data_experimental:	title += "Experimental "
+		elif are_data_experimental is False:	title += "Generated "
+		title += "data by Model " + model_name
 		fig.suptitle(title)
 
 	@staticmethod

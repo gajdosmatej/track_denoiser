@@ -1,4 +1,4 @@
-from denoise_traces import Model, Plotting, QualityEstimator
+from denoise_traces import DataLoader, Plotting
 import numpy
 from tensorflow import keras
 import keras.utils
@@ -9,7 +9,7 @@ import preprocess_data
 import tensorflow
 
 
-def findThreshold(model, path):
+def findThreshold(model, path, model_name):
 	signals = numpy.load("data/simulated/3D/0_signal_3d.npy")
 	noises = numpy.load("data/simulated/3D/0_noise_3d.npy")
 	data_num = signals.shape[0]
@@ -26,75 +26,70 @@ def findThreshold(model, path):
 	reconstructions = model.predict( numpy.reshape(noises, (*noises.shape, 1)) )
 
 	print(">> Trying several thresholds:")
-	'''num_steps = 5
-	leading_coeff = 0.5
-	best_effunc = -numpy.Infinity
-	best_threshold = 0
-	for exponent in range(num_steps):
-		best_new_leading = leading_coeff
-		best_curr_effunc = best_effunc
-		for i in range(-5, 6):
-			threshold = numpy.round( leading_coeff + i * 10**(-exponent-1), 2+exponent)
-			print(">> Thr = " + str(threshold))
-			binary_reconstructions = numpy.where(reconstructions > threshold, 1, 0)
-			rhos = numpy.zeros(shape=data_num)
-			sigmas = numpy.zeros(shape=data_num)
-			for j in range(data_num):
-				binary_remaining_signal = numpy.sum(binary_reconstructions[j][signals_map[j]])
-				binary_remaining_noise = numpy.sum(binary_reconstructions[j]) - binary_remaining_signal
-				rhos[j] = binary_remaining_signal / num_sgn[j]
-				sigmas[j] = binary_remaining_noise / num_noise[j]
-			mean_rho, mean_sigma = numpy.mean(rhos), numpy.mean(sigmas)
-			effunc = mean_rho - mean_sigma
-			print(">>> Reconstructed signal ratio: " + str(mean_rho) + ", Remaining noise: " + str(mean_sigma) + ", effuc: " + str(effunc))
-			if effunc > best_curr_effunc:
-				best_new_leading = threshold
-				best_curr_effunc = effunc
-		if best_curr_effunc > best_effunc:
-			best_effunc = best_curr_effunc
-			best_threshold = best_new_leading
-		leading_coeff = best_new_leading'''
-	
 	num_steps = 100
-	optimised_func_vals = numpy.zeros(num_steps)
-	mean_rhos = []
-	mean_sigmas = []
+	mean_rhos = numpy.zeros(num_steps)
+	mean_sigmas = numpy.zeros(num_steps)
+
+	#threshold is usually in [0, 0.2], but for the plots we want to try thresholds in [0, 1]
+	thresholds = numpy.concatenate(	[numpy.linspace(start=0, stop=0.2, num=num_steps//2), 
+									numpy.linspace(start=0.2, stop=1, num=num_steps//2)])
+
+	#the (a bit arbitrary) function that is being maximised by the threshold
+	def optimised_func(rho, sigma):	return rho - sigma
 
 	for i in range(num_steps):
-		threshold = i/(2*num_steps)
+		threshold = thresholds[i]
 		print(">>> Threshold", threshold)
 		binary_reconstructions = numpy.where(reconstructions > threshold, 1, 0)
 		rhos = numpy.zeros(shape=data_num)
 		sigmas = numpy.zeros(shape=data_num)
+
+		#count the remaining signal and noise tiles in every event after classification with current threshold
 		for j in range(data_num):
 			binary_remaining_signal = numpy.sum(binary_reconstructions[j][signals_map[j]])
 			binary_remaining_noise = numpy.sum(binary_reconstructions[j]) - binary_remaining_signal
 			rhos[j] = binary_remaining_signal / num_sgn[j]
 			sigmas[j] = binary_remaining_noise / num_noise[j]
+		
+		#get the average ratios of remaining signals and noises
 		mean_rho, mean_sigma = numpy.mean(rhos), numpy.mean(sigmas)
-		mean_rhos.append(mean_rho)
-		mean_sigmas.append(mean_sigma)
-		optimised_func_vals[i] = mean_rho - mean_sigma
-		print(">>> Reconstructed signal ratio: " + str(mean_rho) + ", Remaining noise: " + str(mean_sigma) + ", Optimised function: " + str(mean_rho - mean_sigma))
-
-	best_threshold = numpy.argmax(optimised_func_vals) / (2*num_steps)
+		mean_rhos[i] = mean_rho
+		mean_sigmas[i] = mean_sigma
+		print(">>> Reconstructed signal ratio: " + str(mean_rho) + ", Remaining noise: " + str(mean_sigma) + ", Optimised function: " + str(optimised_func(mean_rho, mean_sigma)))
+	
+	optimised_func_vals = optimised_func(mean_rhos, mean_sigmas)
+	best_threshold = thresholds[numpy.argmax(optimised_func_vals)]
 	print("> Best threshold is", best_threshold)
 	f = open(path + "threshold.txt", "w")
 	f.write( str(best_threshold) )
 	f.close()
 
+	#ROC
 	matplotlib.pyplot.plot(mean_sigmas, mean_rhos, ".-b")
-	matplotlib.pyplot.title("Threshold Classifier ROC")
+	matplotlib.pyplot.title("Threshold Classifier ROC for Model " + model_name)
 	matplotlib.pyplot.xlabel("Fraction of Unfiltered Background Tiles")
 	matplotlib.pyplot.ylabel("Fraction of Reconstructed Signal Tiles")
 	matplotlib.pyplot.xlim(0,1)
 	matplotlib.pyplot.ylim(0,1)
 	matplotlib.pyplot.savefig(path + "ROC.pdf", bbox_inches='tight')
 	matplotlib.pyplot.clf()
+	
+	#Evolution of metrics based on threshold
+	matplotlib.pyplot.plot(thresholds, mean_rhos, ".-", label="Reconstructed signal ratio")
+	matplotlib.pyplot.plot(thresholds, mean_sigmas, ".-", label="Remaining noise ratio")
+	matplotlib.pyplot.plot(thresholds, optimised_func_vals, ".-", label="Optimised function")
+	matplotlib.pyplot.xlabel("Threshold")
+	matplotlib.pyplot.ylabel("Value")
+	matplotlib.pyplot.legend()
+	matplotlib.pyplot.xlim(0,1)
+	matplotlib.pyplot.ylim(0,1)
+	matplotlib.pyplot.title("Metrics of Reconstruction Quality Based On Threshold by Model " + model_name)
+	matplotlib.pyplot.savefig(path + "thr_evol.pdf", bbox_inches='tight')
+	matplotlib.pyplot.clf()
 	return best_threshold
 
 
-def postprocessModel(path):
+def postprocessModel(path, model_name):
 	print("> Loading model...")
 	model = keras.models.load_model(path + "model")
 
@@ -105,7 +100,7 @@ def postprocessModel(path):
 
 
 	print("> Finding optimal classification threshold...")
-	threshold = findThreshold(model, path)
+	threshold = findThreshold(model, path, model_name)
 
 	print("> Plotting examples of reconstruction...")
 
@@ -118,56 +113,7 @@ def postprocessModel(path):
 
 		reconstr = numpy.reshape(model(noisy_input)[0], (12,14,208))
 		classificated = numpy.where(reconstr > threshold, 1, 0)
-		fig, ax = matplotlib.pyplot.subplots(3, 3)
-
-		#ax[0][1].imshow(numpy.sum(reconstr, axis=0), cmap="gray", norm=matplotlib.colors.LogNorm() )
-		ax[0][0].imshow(numpy.sum(noisy, axis=0), cmap="gray", vmin=0, vmax=1)
-		#ax[0][0].set_title("Noisy, ZY Projection")
-		ax[0][0].set_title("Noisy")
-		ax[0][0].set_xlabel("z")
-		ax[0][0].set_ylabel("y")
-		
-		ax[0][1].imshow(numpy.sum(reconstr, axis=0), cmap="gray", vmin=0, vmax=1)
-		#ax[0][1].set_title("Raw Reconstruction, ZY Projection")
-		ax[0][1].set_title("Raw Reconstruction")
-		ax[0][1].set_xlabel("z")
-		ax[0][1].set_ylabel("y")
-
-		ax[0][2].imshow(numpy.sum(classificated, axis=0), cmap="gray", vmin=0, vmax=1)
-		#ax[0][2].set_title("Reconstruction after Treshold, ZY Projection")
-		ax[0][2].set_title("Reconstruction + Thr")
-		ax[0][2].set_xlabel("z")
-		ax[0][2].set_ylabel("y")
-
-		ax[1][0].imshow(numpy.sum(noisy, axis=1), cmap="gray", vmin=0, vmax=1)
-		#ax[1][0].set_title("Noisy, ZX Projection")
-		ax[1][0].set_xlabel("z")
-		ax[1][0].set_ylabel("x")
-
-		ax[1][1].imshow(numpy.sum(reconstr, axis=1), cmap="gray", vmin=0, vmax=1)
-		#ax[1][1].set_title("Reconstruction, ZX Projection")
-		ax[1][1].set_xlabel("z")
-		ax[1][1].set_ylabel("x")
-
-		ax[1][2].imshow(numpy.sum(classificated, axis=1), cmap="gray", vmin=0, vmax=1)
-		#ax[1][2].set_title("Reconstruction after Treshold, ZX Projection")
-		ax[1][2].set_xlabel("z")
-		ax[1][2].set_ylabel("x")
-
-		ax[2][0].imshow(numpy.sum(noisy, axis=2), cmap="gray", vmin=0, vmax=1)
-		#ax[2][0].set_title("Noisy, YX Projection")
-		ax[2][0].set_xlabel("y")
-		ax[2][0].set_ylabel("x")
-
-		ax[2][1].imshow(numpy.sum(reconstr, axis=2), cmap="gray", vmin=0, vmax=1)
-		#ax[2][1].set_title("Reconstruction, YX Projection")
-		ax[2][1].set_xlabel("y")
-		ax[2][1].set_ylabel("x")
-
-		ax[2][2].imshow(numpy.sum(classificated, axis=2), cmap="gray", vmin=0, vmax=1)
-		#ax[2][2].set_title("Reconstruction after Treshold, YX Projection")
-		ax[2][2].set_xlabel("y")
-		ax[2][2].set_ylabel("x")
+		Plotting.plotEvent(noisy, reconstr, classificated, True, model_name)
 
 		matplotlib.pyplot.savefig(path + "example_reconstruction" + str(i) + ".pdf", bbox_inches="tight")
 		matplotlib.pyplot.clf()
@@ -245,8 +191,9 @@ def postprocessModel(path):
 	matplotlib.pyplot.xlabel("epoch")
 	matplotlib.pyplot.ylabel("binary cross entropy (log scale)")
 	matplotlib.pyplot.yscale("log")
-	matplotlib.pyplot.suptitle("Training of Model " + name)
+	matplotlib.pyplot.suptitle("Training of Model " + model_name)
 	matplotlib.pyplot.savefig(path + "history.pdf", bbox_inches='tight')
+	matplotlib.pyplot.clf()
 
 	print("> Evaluating special inputs...")
 
@@ -301,7 +248,7 @@ if name == "ALL":
 		print("-------------------------------------")
 		print("> PROCESSING MODEL " + model_name + " [" + str(counter) + "/" + str(num_all) + "]")
 		print("-------------------------------------")
-		postprocessModel("./models/3D/" + model_name + "/")
+		postprocessModel("./models/3D/" + model_name + "/", model_name)
 		counter += 1
 elif name == "NEW":
 	counter = 1
@@ -311,8 +258,12 @@ elif name == "NEW":
 			print("> SKIPPING MODEL " + model_name)
 		else:
 			print("> PROCESSING MODEL " + model_name)
-		print("-------------------------------------")
-		postprocessModel("./models/3D/" + model_name + "/")
+			print("-------------------------------------")
+			postprocessModel("./models/3D/" + model_name + "/", model_name)
 		counter += 1
 else:
-	postprocessModel("./models/3D/" + name + "/")
+	for model_name in name.split():
+		print("-------------------------------------")
+		print("> PROCESSING MODEL " + model_name)
+		print("-------------------------------------")
+		postprocessModel("./models/3D/" + model_name + "/", model_name)
