@@ -3,157 +3,92 @@ from tensorflow import keras
 import tensorflow
 import matplotlib.pyplot
 import keras.utils
-import os
-import copy
+import preprocess_data
 
 class DataLoader:
-	def __init__(self, path :str, plane :str, start_file :int, end_file :int):
-		self.path = path
-		self.plane = plane
-		self.start_file = start_file
-		self.end_file = end_file
-		self.batch_size = 500
-		shapes_dict = {"zx": (12,208,1), "zy": (14,208,1), "yx": (14,12,1)}
-		self.shape = shapes_dict[plane]
+	'''
+	Class for loading generated data in tensorflow datasets
+	'''
+	def __init__(self, path :str):
+		self.path = path + ('/' if path[-1] != '/' else '')
 
-	def dataPairLoad(self):
+
+	def dataPairLoad(self, low_id :int, high_id :int):
+		'''
+		Yield a pair of noisy and clean event tensors from numbered data files in between @low_id and @high_id
+		'''
 		while True:
-			order = numpy.arange(self.start_file, self.end_file)
+			order = numpy.arange(low_id, high_id)
 			numpy.random.shuffle(order)
 			for id in order:
-				signal_batch = numpy.load(self.path + str(id) + "_signal_" + self.plane + ".npy")
-				noise_batch = numpy.load(self.path + str(id) + "_noise_" + self.plane + ".npy")
-				for i in range(20000):
-					yield ( numpy.reshape(noise_batch[i], self.shape), numpy.reshape(signal_batch[i], self.shape))
-	
-	def getDataset(self):
-		return tensorflow.data.Dataset.from_generator(self.dataPairLoad, output_signature = 
-						(	tensorflow.TensorSpec(shape=self.shape, dtype=tensorflow.float32), 
-							tensorflow.TensorSpec(shape=self.shape, dtype=tensorflow.float32))
-						).shuffle(100, reshuffle_each_iteration=True).batch(50).prefetch(2)
+				signal_batch = numpy.load(self.path + str(id) + "_signal_3d.npy")
+				noise_batch = numpy.load(self.path + str(id) + "_noise_3d.npy")
+				for i in range(5000):
+					yield ( numpy.reshape(noise_batch[i], (12,14,208,1)), numpy.reshape(signal_batch[i], (12,14,208,1)))
 
 
-class Model:
-	def __init__(self, plane=None):
-		if plane == "zx":	self.chooseModelZX()
-		elif plane == "yx":	self.chooseModelYX()
-		elif plane == "zy":	self.chooseModelZY()
+	def getDataset(self, low_id :int, high_id :int):
+		'''
+		Pack the method _dataPairLoad_(@low_id, @high_id) into tensorflow dataset.
+		'''
+		return tensorflow.data.Dataset.from_generator(lambda: self.dataPairLoad(low_id, high_id), output_signature =
+					(	tensorflow.TensorSpec(shape=(12,14,208,1), dtype=tensorflow.float16),
+						tensorflow.TensorSpec(shape=(12,14,208,1), dtype=tensorflow.float16))
+					).batch(100).prefetch(20)
 
-	#TODO
-	def chooseModelYX(self):
-		self.type = "yx"
-		self.model = keras.Sequential([keras.layers.Input(shape=(12,10,1)),
-									#keras.layers.Conv2D(padding="same", strides=(1,1), kernel_size=(4,4), filters=64, activation="relu"),
-									#keras.layers.MaxPool2D(pool_size = (2,2)),
-									#keras.layers.Conv2D(padding="same", strides=(1,1), kernel_size=(3,3), filters=128, activation="relu"),
-									#keras.layers.UpSampling2D(size = (2,2)),
-									#keras.layers.Conv2D(padding="same", strides=(1,1), kernel_size=(4,4), filters=64, activation="relu"),
-									keras.layers.Conv2D(padding="same", strides=(1,1), kernel_size=(4,4), filters=200, activation="relu"),
-									keras.layers.Conv2D(padding="same", strides=(1,1), kernel_size=(6,6), filters=10, activation="relu"),
-									keras.layers.Dense(units=1, activation="sigmoid")])
-
-	#TODO
-	def chooseModelZY(self):
-		self.type = "zy"
-		self.model = keras.Sequential([	keras.layers.Input(shape=(14,208,1)),
-									keras.layers.Conv2D(padding="same", strides=(1,1), kernel_size=(4,8), filters=32, activation="relu"),
-									keras.layers.MaxPool2D(pool_size = (2,2)),
-									keras.layers.Conv2D(padding="same", strides=(1,1), kernel_size=(4,8), filters=64, activation="relu"),
-									keras.layers.UpSampling2D(size = (2,2)),
-									keras.layers.Conv2D(padding="same", strides=1, kernel_size=(6,8), filters=32, activation="relu"),
-									keras.layers.Dense(units=1, activation="sigmoid") ])
-
-	def chooseModelZX(self):
-		self.type = "zx"
-		self.model = keras.Sequential([	keras.layers.Input(shape=(12,208,1)),
-									keras.layers.Conv2D(padding="same", strides=(1,1), kernel_size=(3,10), filters=64, activation="relu"),
-									keras.layers.MaxPool2D(pool_size = (1,2)),
-									keras.layers.Conv2D(padding="same", strides=(1,1), kernel_size=(3,8), filters=64, activation="relu"),
-									keras.layers.MaxPool2D(pool_size = (2,2)),
-									keras.layers.Conv2D(padding="same", strides=(1,1), kernel_size=(3,5), filters=128, activation="relu"),
-									keras.layers.UpSampling2D(size = (2,2)),
-									keras.layers.Conv2D(padding="same", strides=(1,1), kernel_size=(3,8), filters=64, activation="relu"),
-									keras.layers.UpSampling2D(size = (1,2)),
-									keras.layers.Conv2D(padding="same", strides=(1,1), kernel_size=(3,10), filters=64, activation="relu"),
-									keras.layers.Conv2D(padding="same", strides=(1,1), kernel_size=(3,10), filters=1, activation="sigmoid")])
-
-	def estimate(self, data_point :numpy.ndarray):
-		'''Returns the output of the CNN call on input \'datapoint\'.'''
-		data_point = numpy.reshape( self.model( numpy.reshape( data_point, (1, *data_point.shape)) ), data_point.shape)
-		return data_point
-
-	@staticmethod
-	def load(path :str, model_type :str):
-		'''Loads CNN model of type \'model_type\' (\"zy\" / \"zx\" / \"yx\") from tensorflow \'name\' directory.'''
-		model = Model()
-		model.type = model_type
-		model.model = keras.models.load_model(path)
-		return model
-
-	def save(self, name :str = None, save_img = True):
-		'''Saves this model to tensorflow \'name\' directory and also saves diagram of the model architecture, if \'save_img\' is True. 
-		If no \'name\' is specified, the default name is the smallest available natural number.'''
-		existing_models = os.listdir("./models")
-		i = 1
-		while name == None or name in existing_models:
-			name = str(i) + "_" + self.type
-			i += 1
-		self.model.save("./models/" + name)
-		if save_img:
-			keras.utils.plot_model(self.model, to_file='./models/' + name + ".png", show_shapes=True, show_layer_names=False, show_layer_activations=True)
+	def getNoisyBatch(self, experimental :bool = True, file_id :int = 0):
+		'''
+		Return a list of noisy data. If @experimental is True, return real data from X17 experiment, otherwise generated data are used from file specified by $file_id.
+		'''
+		if experimental:
+			x17_data = numpy.array( [event for (_, event) in preprocess_data.loadX17Data("goodtracks")] )
+			return x17_data / numpy.max(x17_data)	#normalisation to [0,1] interval
+		else:
+			return numpy.load(self.path + str(file_id) + "_noise_3d.npy")
 
 class Plotting:
 	@staticmethod
-	def plotRandomData(model :keras.Model, noise_data :numpy.ndarray, signal_data :numpy.ndarray = None, num_plots :int = 5, rng = (15000, 15500), plane :str = "zx"):
-		for _ in range(num_plots):
-			index = numpy.random.randint(*rng)
-			if signal_data is not None:
-				Plotting.createPlot(model, noise_data[index], signal_data[index], plane = plane)
+	def plotRandomData(model :keras.Model, noise_data :numpy.ndarray, are_data_experimental :bool = None, model_name :str = "", threshold :float = None):
+		'''
+		Plot @model's reconstruction of random events from @noise_data. If @threshold is specified, plot also the final classification after applying @threshold to reconstruciton.
+		'''
+		while True:
+			index = numpy.random.randint(0, len(noise_data))
+			noisy = numpy.reshape( noise_data[index], (1,12,14,208,1))
+			reconstr = numpy.reshape(model(noisy)[0], (12,14,208))
+			noisy = numpy.reshape(noisy[0], (12,14,208))
+
+			if threshold != None:
+				classif = numpy.where(reconstr > threshold, 1, 0)
+				fig, ax = matplotlib.pyplot.subplots(3, 3)
 			else:
-				Plotting.createPlot(model, noise_data[index], plane = plane)
-			matplotlib.pyplot.show()
-	
-	@staticmethod
-	def createPlot(model :keras.Model, noise_entry :numpy.ndarray, signal_entry :numpy.ndarray = None, plane :str = "zx"):
-		axes = {"zx": ("$z$", "$x$"), "zy": ("$z$", "$y$"), "yx": ("$x$", "$y$")}
-		if signal_entry is not None:
-			fig, ax = matplotlib.pyplot.subplots(3)
-			ax[0].imshow( signal_entry, cmap="gray" )
-			ax[0].set_title("Signal only")
-			ax[1].imshow( noise_entry, cmap="gray" )
-			ax[1].set_title("Signal + noise")
-			ax[2].imshow( model.estimate(noise_entry), cmap="gray" )
-			ax[2].set_title("Signal reconstruction")
-			for i in range(3):
-				ax[i].set_xlabel(axes[plane][0])
-				ax[i].set_ylabel(axes[plane][1])
-		else:
-			fig, ax = matplotlib.pyplot.subplots(2)
-			ax[0].imshow( noise_entry, cmap="gray")
-			ax[0].set_title("Signal + noise")
-			ax[1].imshow( model.estimate(noise_entry), cmap="gray" )
-			ax[1].set_title("Signal reconstruction")
-			for i in range(2):
-				ax[i].set_xlabel(axes[plane][0])
-				ax[i].set_ylabel(axes[plane][1])
-		
+				fig, ax = matplotlib.pyplot.subplots(3, 2)
 
-	@staticmethod
-	def plotRandomAllProjections(models: list[keras.Model], signal_data :list[numpy.ndarray], noise_data :list[numpy.ndarray], num_plots = 5):
-		for _ in range(num_plots):
-			index = numpy.random.randint(15000, 15500)
-			fig, ax = matplotlib.pyplot.subplots(3, 3)
-			for i in range(3):
-				ax[0,i].imshow( signal_data[i][index], cmap="gray" )
-				ax[0,i].set_title("Signal only")
-				ax[1,i].imshow( noise_data[i][index], cmap="gray" )
-				ax[1,i].set_title("Signal + noise")
-				ax[2,i].imshow( models[i].estimate(noise_data[i][index]), cmap="gray" )
-				ax[2,i].set_title("Signal reconstruction")
-			matplotlib.pyplot.get_current_fig_manager().window.showMaximized()
-			matplotlib.pyplot.show()
+			ax[0][0].imshow(numpy.sum(noisy, axis=0), cmap="gray", vmin=0, vmax=1 )
+			ax[0][0].set_title("Noisy")
+			ax[0][1].imshow(numpy.sum(reconstr, axis=0), cmap="gray", vmin=0, vmax=1 )
+			ax[0][1].set_title("Reconstr")
+			ax[1][0].imshow(numpy.sum(noisy, axis=1), cmap="gray", vmin=0, vmax=1 )
+			ax[1][1].imshow(numpy.sum(reconstr, axis=1), cmap="gray", vmin=0, vmax=1 )
+			ax[2][0].imshow(numpy.sum(noisy, axis=2), cmap="gray", vmin=0, vmax=1 )
+			ax[2][1].imshow(numpy.sum(reconstr, axis=2), cmap="gray", vmin=0, vmax=1 )
 
+			if threshold != None:
+				ax[0][2].imshow(numpy.sum(classif, axis=0), cmap="gray", vmin=0, vmax=1 )
+				ax[0][2].set_title("Thr")
+				ax[2][2].imshow(numpy.sum(classif, axis=2), cmap="gray", vmin=0, vmax=1 )
+				ax[1][2].imshow(numpy.sum(classif, axis=1), cmap="gray", vmin=0, vmax=1 )
 
+			title = "Reconstruction of "
+			if are_data_experimental:	title += "experimental "
+			elif are_data_experimental is False:	title += "generated "
+			title += "data by model " + model_name
+			fig.suptitle(title)
+			fig.show()
+			if input("Enter 'q' to stop plotting (or anything else for another plot):") == "q":	break
+			
+
+#TODO ... Remake to 3D, compare with new accuracy metrics 
 class QualityEstimator:
 	@staticmethod
 	def signalsMetric(signal :numpy.ndarray, reconstructed :numpy.ndarray):
