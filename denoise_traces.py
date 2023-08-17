@@ -48,6 +48,35 @@ class DataLoader:
 
 class Plotting:
 	@staticmethod
+	def plotEvent(noisy, reconstruction, classificated = None, are_data_experimental = None, model_name = ''):
+		if classificated is None:
+			fig, ax = matplotlib.pyplot.subplots(3, 2)
+		else:
+			fig, ax = matplotlib.pyplot.subplots(3, 3)
+		
+		ax[0][0].imshow(numpy.sum(noisy, axis=0), cmap="gray", vmin=0, vmax=1 )
+		ax[0][0].set_title("Noisy")
+		ax[0][1].imshow(numpy.sum(reconstruction, axis=0), cmap="gray", vmin=0, vmax=1 )
+		ax[0][1].set_title("Raw Reconstruction")
+		ax[1][0].imshow(numpy.sum(noisy, axis=1), cmap="gray", vmin=0, vmax=1 )
+		ax[1][1].imshow(numpy.sum(reconstruction, axis=1), cmap="gray", vmin=0, vmax=1 )
+		ax[2][0].imshow(numpy.sum(noisy, axis=2), cmap="gray", vmin=0, vmax=1 )
+		ax[2][1].imshow(numpy.sum(reconstruction, axis=2), cmap="gray", vmin=0, vmax=1 )
+
+		if classificated is not None:
+			ax[0][2].imshow(numpy.sum(classificated, axis=0), cmap="gray", vmin=0, vmax=1 )
+			ax[0][2].set_title("After Threshold")
+			ax[2][2].imshow(numpy.sum(classificated, axis=2), cmap="gray", vmin=0, vmax=1 )
+			ax[1][2].imshow(numpy.sum(classificated, axis=1), cmap="gray", vmin=0, vmax=1 )
+
+		title = "Reconstruction of "
+		if are_data_experimental:	title += "experimental "
+		elif are_data_experimental is False:	title += "generated "
+		title += "data by model " + model_name
+		fig.suptitle(title)
+		fig.show()
+
+	@staticmethod
 	def plotRandomData(model :keras.Model, noise_data :numpy.ndarray, are_data_experimental :bool = None, model_name :str = "", threshold :float = None):
 		'''
 		Plot @model's reconstruction of random events from @noise_data. If @threshold is specified, plot also the final classification after applying @threshold to reconstruciton.
@@ -60,31 +89,10 @@ class Plotting:
 
 			if threshold != None:
 				classif = numpy.where(reconstr > threshold, 1, 0)
-				fig, ax = matplotlib.pyplot.subplots(3, 3)
+				Plotting.plotEvent(noisy, reconstr, classif, are_data_experimental, model_name)
 			else:
-				fig, ax = matplotlib.pyplot.subplots(3, 2)
+				Plotting.plotEvent(noisy, reconstr, None, are_data_experimental, model_name)
 
-			ax[0][0].imshow(numpy.sum(noisy, axis=0), cmap="gray", vmin=0, vmax=1 )
-			ax[0][0].set_title("Noisy")
-			ax[0][1].imshow(numpy.sum(reconstr, axis=0), cmap="gray", vmin=0, vmax=1 )
-			ax[0][1].set_title("Reconstr")
-			ax[1][0].imshow(numpy.sum(noisy, axis=1), cmap="gray", vmin=0, vmax=1 )
-			ax[1][1].imshow(numpy.sum(reconstr, axis=1), cmap="gray", vmin=0, vmax=1 )
-			ax[2][0].imshow(numpy.sum(noisy, axis=2), cmap="gray", vmin=0, vmax=1 )
-			ax[2][1].imshow(numpy.sum(reconstr, axis=2), cmap="gray", vmin=0, vmax=1 )
-
-			if threshold != None:
-				ax[0][2].imshow(numpy.sum(classif, axis=0), cmap="gray", vmin=0, vmax=1 )
-				ax[0][2].set_title("Thr")
-				ax[2][2].imshow(numpy.sum(classif, axis=2), cmap="gray", vmin=0, vmax=1 )
-				ax[1][2].imshow(numpy.sum(classif, axis=1), cmap="gray", vmin=0, vmax=1 )
-
-			title = "Reconstruction of "
-			if are_data_experimental:	title += "experimental "
-			elif are_data_experimental is False:	title += "generated "
-			title += "data by model " + model_name
-			fig.suptitle(title)
-			fig.show()
 			if input("Enter 'q' to stop plotting (or anything else for another plot):") == "q":	break
 			
 
