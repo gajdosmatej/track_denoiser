@@ -231,8 +231,10 @@ def postprocessModel(path, model_name):
 		reconstr = numpy.reshape(model(noisy_input)[0], (12,14,208))
 		classificated = numpy.where(reconstr > threshold, 1, 0)
 		Plotting.plotEvent(noisy, reconstr, classificated, True, model_name)
-
 		matplotlib.pyplot.savefig(path + "example_reconstruction" + str(i) + ".pdf", bbox_inches="tight")
+		matplotlib.pyplot.clf()
+
+		Plotting.animation3D("./example_reconstruction_3D_" + str(i) + ".gif", model, noisy, True, model_name, threshold)
 		matplotlib.pyplot.clf()
 
 

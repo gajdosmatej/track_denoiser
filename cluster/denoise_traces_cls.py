@@ -4,6 +4,7 @@ import tensorflow
 import matplotlib.pyplot
 import keras.utils
 import X17_data_load_cls
+import matplotlib.animation
 
 class DataLoader:
 	'''
@@ -83,6 +84,63 @@ class Plotting:
 		elif are_data_experimental is False:	title += "Generated "
 		title += "data by Model " + model_name
 		fig.suptitle(title)
+
+	@staticmethod
+	def getPlot3D(model :keras.Model, noise_event :numpy.ndarray, are_data_experimental :bool = None, model_name :str = "", threshold :float = None, rotation=(0,0,0)):
+		fig = matplotlib.pyplot.figure(figsize=matplotlib.pyplot.figaspect(0.5))
+		
+		ax1 = fig.add_subplot(1, 2, 1, projection='3d')
+		xs, ys, zs = noise_event.nonzero()
+		vals = numpy.array([noise_event[xs[i],ys[i],zs[i]] for i in range(len(xs))])
+		sctr1 = ax1.scatter(xs, ys, zs, c=vals, cmap="plasma")
+		ax1.set_xlim(0, 11)
+		ax1.set_xlabel("$x$")
+		ax1.set_ylim(0, 13)
+		ax1.set_ylabel("$y$")
+		ax1.set_zlim(0, 200)
+		ax1.set_zlabel("$z$")
+		title = title = "Noisy "
+		if are_data_experimental:	title += "Experimental "
+		elif are_data_experimental is False:	title += "Generated "
+		title += "Data"
+		ax1.set_title(title)
+		ax1.view_init(*rotation)	#rotate the scatter plot, useful for animation
+
+		reconstr_event = numpy.reshape( model( numpy.reshape(noise_event, (1,12,14,208,1)) )[0], (12,14,208) )
+		classificated_event = numpy.where(reconstr_event > threshold, 1, 0)
+		ax2 = fig.add_subplot(1, 2, 2, projection='3d')
+		xs, ys, zs = classificated_event.nonzero()
+		vals = numpy.array([classificated_event[xs[i],ys[i],zs[i]] for i in range(len(xs))])
+		sctr2 = ax2.scatter(xs, ys, zs, c=vals)
+		ax2.set_xlim(0, 11)
+		ax2.set_xlabel("$x$")
+		ax2.set_ylim(0, 13)
+		ax2.set_ylabel("$y$")
+		ax2.set_zlim(0, 200)
+		ax2.set_zlabel("$z$")
+		ax2.view_init(*rotation)
+		title = "Reconstruction and Threshold Classification\n"
+		title += "by Model " + model_name
+		ax2.set_title(title)
+
+		#fig.subplots_adjust(right=0.8)
+		#cbar_ax = fig.add_axes([0.85, 0.15, 0.05, 0.7])
+		cb = fig.colorbar(sctr1, ax=[ax1, ax2], orientation="horizontal")
+		cb.set_label("$E$")
+
+		return fig, ax1, ax2
+
+
+	def animation3D(path :str, model :keras.Model, noise_event :numpy.ndarray, are_data_experimental :bool = None, model_name :str = "", threshold :float = None):
+		fig, ax1, ax2 = Plotting.getPlot3D(model, noise_event, are_data_experimental, model_name, threshold)
+
+		def run(i):	
+			ax1.view_init(0,i,0)
+			ax2.view_init(0,i,0)
+
+		anim = matplotlib.animation.FuncAnimation(fig, func=run, frames=360, interval=20, blit=False)
+		anim.save(path, fps=30, dpi=200, writer="pillow")
+
 
 	@staticmethod
 	def plotRandomData(model :keras.Model, noise_data :numpy.ndarray, are_data_experimental :bool = None, model_name :str = "", threshold :float = None):
