@@ -1,0 +1,33 @@
+Model: "sequential"
+_________________________________________________________________
+ Layer (type)                Output Shape              Param #   
+=================================================================
+ conv3d (Conv3D)             (None, 12, 14, 208, 20)   11540     
+                                                                 
+ average_pooling3d (AverageP  (None, 12, 14, 104, 20)  0         
+ ooling3D)                                                       
+                                                                 
+ conv3d_1 (Conv3D)           (None, 12, 14, 104, 20)   28820     
+                                                                 
+ max_pooling3d (MaxPooling3D  (None, 6, 7, 52, 20)     0         
+ )                                                               
+                                                                 
+ conv3d_2 (Conv3D)           (None, 6, 7, 52, 20)      21620     
+                                                                 
+ up_sampling3d (UpSampling3D  (None, 12, 14, 104, 20)  0         
+ )                                                               
+                                                                 
+ conv3d_3 (Conv3D)           (None, 12, 14, 104, 20)   21620     
+                                                                 
+ up_sampling3d_1 (UpSampling  (None, 12, 14, 208, 20)  0         
+ 3D)                                                             
+                                                                 
+ conv3d_4 (Conv3D)           (None, 12, 14, 208, 20)   14420     
+                                                                 
+ conv3d_5 (Conv3D)           (None, 12, 14, 208, 1)    541       
+                                                                 
+=================================================================
+Total params: 98,561
+Trainable params: 98,561
+Non-trainable params: 0
+_________________________________________________________________

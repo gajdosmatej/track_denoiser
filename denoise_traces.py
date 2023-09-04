@@ -4,6 +4,7 @@ import tensorflow
 import matplotlib.pyplot
 import keras.utils
 import preprocess_data
+import copy
 
 class DataLoader:
 	'''
@@ -22,6 +23,7 @@ class DataLoader:
 			numpy.random.shuffle(order)
 			for id in order:
 				signal_batch = numpy.load(self.path + str(id) + "_signal_3d.npy")
+				signal_batch = numpy.where(signal_batch > 0.001, 1, 0)	#CLASSIFICATION
 				noise_batch = numpy.load(self.path + str(id) + "_noise_3d.npy")
 				for i in range(5000):
 					yield ( numpy.reshape(noise_batch[i], (12,14,208,1)), numpy.reshape(signal_batch[i], (12,14,208,1)))
@@ -48,23 +50,28 @@ class DataLoader:
 
 class Plotting:
 	@staticmethod
-	def plotEvent(noisy, reconstruction, classificated = None, are_data_experimental = None, model_name = '', axes=[0,1,2]):
+	def plotEvent(noisy, reconstruction, classificated = None, are_data_experimental = None, model_name = '', axes=[0,1,2], use_log :bool = False):
 		if classificated is None:
 			fig, ax = matplotlib.pyplot.subplots(len(axes), 2)
 		else:
 			fig, ax = matplotlib.pyplot.subplots(len(axes), 3)
 
 
-		x_labels = ['y', 'x', 'x']
-		y_labels = ['z', 'z', 'y']
+		x_labels = ['z', 'z', 'y']
+		y_labels = ['y', 'x', 'x']
+
+		fixed_cmap = copy.copy(matplotlib.cm.get_cmap('gray'))
+		fixed_cmap.set_bad((0,0,0))	#fix pixels with zero occurrence - otherwise problem for LogNorm
+		norm = matplotlib.colors.LogNorm(vmin=0, vmax=1) if use_log else matplotlib.colors.PowerNorm(1, vmin=0, vmax=1)
+
 		for i in range(len(axes)):
 			axis = axes[i]
 			ax[i][0].set_title("Noisy")
-			ax[i][0].imshow(numpy.sum(noisy, axis=axis), cmap="gray", vmin=0, vmax=1 )
+			ax[i][0].imshow(numpy.sum(noisy, axis=axis), cmap=fixed_cmap, norm=norm )
 			ax[i][0].set_xlabel(x_labels[axis])
 			ax[i][0].set_ylabel(y_labels[axis])
 			ax[i][1].set_title("Raw Reconstruction")
-			ax[i][1].imshow(numpy.sum(reconstruction, axis=axis), cmap="gray", vmin=0, vmax=1 )
+			ax[i][1].imshow(numpy.sum(reconstruction, axis=axis), cmap=fixed_cmap, norm=norm )
 			ax[i][1].set_xlabel(x_labels[axis])
 			ax[i][1].set_ylabel(y_labels[axis])
 
@@ -72,7 +79,7 @@ class Plotting:
 			for i in range(len(axes)):
 				axis = axes[i]
 				ax[i][2].set_title("After Threshold")
-				ax[i][2].imshow(numpy.sum(classificated, axis=axis), cmap="gray", vmin=0, vmax=1 )
+				ax[i][2].imshow(numpy.sum(classificated, axis=axis), cmap=fixed_cmap, norm=norm )
 				ax[i][2].set_xlabel(x_labels[axis])
 				ax[i][2].set_ylabel(y_labels[axis])
 			
@@ -83,7 +90,7 @@ class Plotting:
 		fig.suptitle(title)
 
 	@staticmethod
-	def plotRandomData(model :keras.Model, noise_data :numpy.ndarray, are_data_experimental :bool = None, model_name :str = "", threshold :float = None):
+	def plotRandomData(model :keras.Model, noise_data :numpy.ndarray, are_data_experimental :bool = None, model_name :str = "", threshold :float = None, axes :list = [0,1,2], use_log :bool = False):
 		'''
 		Plot @model's reconstruction of random events from @noise_data. If @threshold is specified, plot also the final classification after applying @threshold to reconstruciton.
 		'''
@@ -95,9 +102,9 @@ class Plotting:
 
 			if threshold != None:
 				classif = numpy.where(reconstr > threshold, 1, 0)
-				Plotting.plotEvent(noisy, reconstr, classif, are_data_experimental, model_name, axes = [0,1,2])
+				Plotting.plotEvent(noisy, reconstr, classif, are_data_experimental, model_name, axes = axes, use_log = use_log)
 			else:
-				Plotting.plotEvent(noisy, reconstr, None, are_data_experimental, model_name, axes = [0,1,2])
+				Plotting.plotEvent(noisy, reconstr, None, are_data_experimental, model_name, axes = axes, use_log = use_log)
 			matplotlib.pyplot.show()
 			if input("Enter 'q' to stop plotting (or anything else for another plot):") == "q":	break
 			

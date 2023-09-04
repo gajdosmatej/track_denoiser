@@ -12,7 +12,7 @@ def dataPairLoad(low_id :int, high_id :int, is_regression :bool):
 				signal_batch = numpy.load("/data/simulated/3D/" + str(id) + "_signal_3d.npy")
 				noise_batch = numpy.load("/data/simulated/3D/" + str(id) + "_noise_3d.npy")
 				if not is_regression:
-					signal_batch = numpy.where(signal_batch>0.01, 1, 0)
+					signal_batch = numpy.where(signal_batch>0.001, 1, 0)
 				for i in range(5000):
 					yield ( numpy.reshape(noise_batch[i], (12,14,208,1)), numpy.reshape(signal_batch[i], (12,14,208,1)))
 	
@@ -30,8 +30,9 @@ for architecture in architectures_list.ARCHITECTURES:
 
 	model = architecture["model"]
 	model.compile(optimizer="Adam", loss="binary_crossentropy")
-	history = model.fit(x = training_dataset, epochs=100, steps_per_epoch=10, validation_data=validation_dataset, validation_steps=10,
-						callbacks = [keras.callbacks.EarlyStopping(monitor='val_loss', patience=3)])
+	num_epochs = architecture["epochs"] if "epochs" in architecture else 100
+	history = model.fit(x = training_dataset, epochs=num_epochs, steps_per_epoch=10, validation_data=validation_dataset, validation_steps=10,
+						callbacks = [keras.callbacks.EarlyStopping(monitor='val_loss', patience=8)])
 	name = architecture["name"] + ("_R" if architecture["mode"] == "regression" else "_C")
 	architecture["model"].save("/scratchdir/models/" + name)
 	json_file = open("/scratchdir/histories/" + name + ".json", "w")

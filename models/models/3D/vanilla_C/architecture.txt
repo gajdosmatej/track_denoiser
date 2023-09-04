@@ -1,0 +1,35 @@
+Model: "model"
+_________________________________________________________________
+ Layer (type)                Output Shape              Param #   
+=================================================================
+ input_1 (InputLayer)        [(None, 12, 14, 208, 1)]  0         
+                                                                 
+ conv3d (Conv3D)             (None, 12, 14, 208, 20)   1100      
+                                                                 
+ max_pooling3d (MaxPooling3D  (None, 12, 14, 104, 20)  0         
+ )                                                               
+                                                                 
+ conv3d_1 (Conv3D)           (None, 12, 14, 104, 20)   21620     
+                                                                 
+ max_pooling3d_1 (MaxPooling  (None, 12, 14, 52, 20)   0         
+ 3D)                                                             
+                                                                 
+ conv3d_2 (Conv3D)           (None, 12, 14, 52, 30)    32430     
+                                                                 
+ up_sampling3d (UpSampling3D  (None, 12, 14, 104, 30)  0         
+ )                                                               
+                                                                 
+ conv3d_3 (Conv3D)           (None, 12, 14, 104, 30)   48630     
+                                                                 
+ up_sampling3d_1 (UpSampling  (None, 12, 14, 208, 30)  0         
+ 3D)                                                             
+                                                                 
+ conv3d_4 (Conv3D)           (None, 12, 14, 208, 30)   48630     
+                                                                 
+ conv3d_5 (Conv3D)           (None, 12, 14, 208, 1)    811       
+                                                                 
+=================================================================
+Total params: 153,221
+Trainable params: 153,221
+Non-trainable params: 0
+_________________________________________________________________
