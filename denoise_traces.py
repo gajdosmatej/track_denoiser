@@ -4,15 +4,85 @@ import tensorflow
 import matplotlib.pyplot
 import matplotlib.animation
 import keras.utils
-import preprocess_data
 import copy
+import os
+
+
+class ModelWrapper:
+	def __init__(self, model :keras.Model, model_name :str = "", threshold :float = None):
+		self.model = model
+		self.name = model_name
+		self.threshold = threshold
+
+
+	@staticmethod
+	def loadPostprocessed(path :str, model_name :str):
+		if path[-1] != "/":	path += "/"
+		threshold_f = open(path + "threshold.txt", "r")
+		threshold = float( threshold_f.read() )
+		return ModelWrapper(keras.models.load_model(path + "model"), model_name, threshold)
+
+
+	def evaluateSingleEvent(self, event :numpy.ndarray):
+		reshaped = numpy.reshape(event, (1, *event.shape, 1))
+		result = self.model(reshaped)
+		result = result[0]
+		return numpy.reshape(result, event.shape)
+
+
+	def evaluateBatch(self, events :numpy.ndarray):
+		reshaped = numpy.reshape(events, (*events.shape, 1))
+		results = self.model.predict(reshaped)
+		return numpy.reshape(results, events.shape)
+
+
+	def save(self, path :str):
+		keras.models.save_model(self.model, path)
+
+
+	def hasThreshold(self):
+		return self.threshold != None
+
+
+	def classify(self, raw_reconstruction :numpy.ndarray):
+		return numpy.where(raw_reconstruction > self.threshold, 1, 0)
+
 
 class DataLoader:
 	'''
-	Class for loading generated data in tensorflow datasets
+	Class for loading X17 data and generated data in tensorflow datasets.
 	'''
 	def __init__(self, path :str):
 		self.path = path + ('/' if path[-1] != '/' else '')
+
+
+	def loadX17Data(self, track_type :str):
+		'''
+		Parse X17 data from txt file into list of tuples (event name, 3D event array).
+		@track_type: "goodtracks" or "othertracks"
+		'''
+
+		def parseX17Line(line :str):
+			x = line[:line.index(",")]
+			x = int(x)
+			line = line[line.index(",")+1:]
+			y = line[:line.index(",")]
+			y = int(y)
+			line = line[line.index(",")+1:]
+			line = line[line.index(",")+1:]
+			z = line[:line.index(",")]
+			z = int(z)
+			line = line[line.index(",")+1:]
+			E = int(line)
+			return (x, y, z, E)
+
+		for f_name in os.listdir(self.path + "x17/" + track_type):
+			file = open(self.path + "x17/" + track_type + "/" + f_name, 'r')
+			space = numpy.zeros((12,14,208))
+			for line in file:
+				x, y, z, E = parseX17Line(line)
+				space[x,y,z] = E
+			yield (f_name[:-4], space)
 
 
 	def dataPairLoad(self, low_id :int, high_id :int):
@@ -23,9 +93,9 @@ class DataLoader:
 			order = numpy.arange(low_id, high_id)
 			numpy.random.shuffle(order)
 			for id in order:
-				signal_batch = numpy.load(self.path + str(id) + "_signal_3d.npy")
+				signal_batch = numpy.load(self.path + "simulated/3D/" + str(id) + "_signal_3d.npy")
 				signal_batch = numpy.where(signal_batch > 0.001, 1, 0)	#CLASSIFICATION
-				noise_batch = numpy.load(self.path + str(id) + "_noise_3d.npy")
+				noise_batch = numpy.load(self.path + "simulated/3D/" + str(id) + "_noise_3d.npy")
 				for i in range(5000):
 					yield ( numpy.reshape(noise_batch[i], (12,14,208,1)), numpy.reshape(signal_batch[i], (12,14,208,1)))
 
@@ -43,20 +113,32 @@ class DataLoader:
 		'''
 		Return a list of noisy data. If @experimental is True, return real data from X17 experiment, otherwise generated data are used from file specified by $file_id.
 		'''
+		
 		if experimental:
-			x17_data = numpy.array( [event for (_, event) in preprocess_data.loadX17Data("goodtracks")] )
+			x17_data = numpy.array( [event for (_, event) in self.loadX17Data("goodtracks")] )
 			return x17_data / numpy.max(x17_data)	#normalisation to [0,1] interval
 		else:
 			return numpy.load(self.path + str(file_id) + "_noise_3d.npy")
 
+
 class Plotting:
 	@staticmethod
 	def plotEvent(noisy, reconstruction, classificated = None, are_data_experimental = None, model_name = '', axes=[0,1,2], use_log :bool = False):
+		'''
+		Create plot of track reconstruction.
+		@noisy ... Noisy event tensor.
+		@reconstruction ... Tensor of event reconstructed by model.
+		@classificated ... Event after threshold classification. Default is None, which skips this plot.
+		@are_data_experimental ... False iff the event is from the generated dataset.
+		@model_name ... Name of the model, which will be displayed in the plot.
+		@axes ... List of plotted projection axes.
+		@use_log ... If True, use log scale.	
+		'''
+		
 		if classificated is None:
 			fig, ax = matplotlib.pyplot.subplots(len(axes), 2)
 		else:
 			fig, ax = matplotlib.pyplot.subplots(len(axes), 3)
-
 
 		x_labels = ['z', 'z', 'y']
 		y_labels = ['y', 'x', 'x']
@@ -91,26 +173,35 @@ class Plotting:
 		fig.suptitle(title)
 
 	@staticmethod
-	def plotRandomData(model :keras.Model, noise_data :numpy.ndarray, are_data_experimental :bool = None, model_name :str = "", threshold :float = None, axes :list = [0,1,2], use_log :bool = False):
+	def plotRandomData(modelAPI :ModelWrapper, noise_data :numpy.ndarray, are_data_experimental :bool = None, axes :list = [0,1,2], use_log :bool = False):
 		'''
 		Plot @model's reconstruction of random events from @noise_data. If @threshold is specified, plot also the final classification after applying @threshold to reconstruciton.
 		'''
 		while True:
 			index = numpy.random.randint(0, len(noise_data))
-			noisy = numpy.reshape( noise_data[index], (1,12,14,208,1))
-			reconstr = numpy.reshape(model(noisy)[0], (12,14,208))
-			noisy = numpy.reshape(noisy[0], (12,14,208))
+			noisy = noise_data[index]
+			reconstr = modelAPI.evaluateSingleEvent(noisy)
 
-			if threshold != None:
-				classif = numpy.where(reconstr > threshold, 1, 0)
-				Plotting.plotEvent(noisy, reconstr, classif, are_data_experimental, model_name, axes = axes, use_log = use_log)
+			if modelAPI.hasThreshold():
+				classif = modelAPI.classify(reconstr)
+				Plotting.plotEvent(noisy, reconstr, classif, are_data_experimental, modelAPI.name, axes = axes, use_log = use_log)
 			else:
-				Plotting.plotEvent(noisy, reconstr, None, are_data_experimental, model_name, axes = axes, use_log = use_log)
+				Plotting.plotEvent(noisy, reconstr, None, are_data_experimental, modelAPI.name, axes = axes, use_log = use_log)
 			matplotlib.pyplot.show()
 			if input("Enter 'q' to stop plotting (or anything else for another plot):") == "q":	break
 	
 	@staticmethod
-	def getPlot3D(model :keras.Model, noise_event :numpy.ndarray, are_data_experimental :bool = None, model_name :str = "", threshold :float = None, rotation=(0,0,0)):
+	def getPlot3D(modelAPI :ModelWrapper, noise_event :numpy.ndarray, are_data_experimental :bool = None, rotation=(0,0,0)):
+		'''
+		Return 3D plot of @noise_event and its reconstruction by @model.
+		@model ... Keras model reconstructing track in this plot.
+		@noise_event ... One noisy event tensor.
+		@are_data_experimental ... False iff the event is from generated dataset.
+		@model_name ... Name of the model which will be displayed in the plot.
+		@threshold ... Classification threshold for the model.
+		@rotation ... Float triple specifying the plot should be rotated.
+		'''
+
 		fig = matplotlib.pyplot.figure(figsize=matplotlib.pyplot.figaspect(0.5))
 		
 		ax1 = fig.add_subplot(1, 2, 1, projection='3d')
@@ -130,8 +221,8 @@ class Plotting:
 		ax1.set_title(title)
 		ax1.view_init(*rotation)	#rotate the scatter plot, useful for animation
 
-		reconstr_event = numpy.reshape( model( numpy.reshape(noise_event, (1,12,14,208,1)) )[0], (12,14,208) )
-		classificated_event = numpy.where(reconstr_event > threshold, 1, 0)
+		reconstr_event = modelAPI.evaluateSingleEvent(noise_event)
+		classificated_event = modelAPI.classify(reconstr_event)
 		ax2 = fig.add_subplot(1, 2, 2, projection='3d')
 		xs, ys, zs = classificated_event.nonzero()
 		vals = numpy.array([classificated_event[xs[i],ys[i],zs[i]] for i in range(len(xs))])
@@ -144,7 +235,7 @@ class Plotting:
 		ax2.set_zlabel("$z$")
 		ax2.view_init(*rotation)
 		title = "Reconstruction and Threshold Classification\n"
-		title += "by Model " + model_name
+		title += "by Model " + modelAPI.name
 		ax2.set_title(title)
 
 		#fig.subplots_adjust(right=0.8)
@@ -155,8 +246,8 @@ class Plotting:
 		return fig, ax1, ax2
 
 
-	def animation3D(path :str, model :keras.Model, noise_event :numpy.ndarray, are_data_experimental :bool = None, model_name :str = "", threshold :float = None):
-		fig, ax1, ax2 = Plotting.getPlot3D(model, noise_event, are_data_experimental, model_name, threshold)
+	def animation3D(path :str, modelAPI :ModelWrapper, noise_event :numpy.ndarray, are_data_experimental :bool = None):
+		fig, ax1, ax2 = Plotting.getPlot3D(modelAPI, noise_event, are_data_experimental)
 
 		def run(i):	
 			ax1.view_init(0,i,0)
@@ -164,96 +255,3 @@ class Plotting:
 
 		anim = matplotlib.animation.FuncAnimation(fig, func=run, frames=360, interval=20, blit=False)
 		anim.save(path, fps=30, dpi=200, writer="pillow")
-
-
-class QualityEstimator:
-	@staticmethod
-	def signalsMetric(signal :numpy.ndarray, reconstructed :numpy.ndarray):
-		'''Calculates how well the signal was reconstructed for each pair of data in \'signal\', \'reconstructed\' arrays.'''
-		shape = signal.shape
-		metric_data = []
-
-		def metric(sgn, rec):	return numpy.sum(numpy.abs(sgn - rec)) / numpy.sum(sgn)
-
-		for n in range(shape[0]):
-			if n % 100 == 0:	print(n, "/", shape[0])
-			rec_matrix, sgn_matrix = reconstructed[n], signal[n]
-			mask = sgn_matrix > 0.1
-			mtr = metric(sgn_matrix[mask], rec_matrix[mask])
-			metric_data.append(mtr)
-			#print(metric(sgn_matrix[mask], rec_matrix[mask]))
-			#Testing.test_QualityEstimator_reconstructedSignals(rec_matrix, sgn_matrix)
-		return metric_data
-
-	@staticmethod
-	def reconstructionQuality(signal :numpy.ndarray, reconstructed :numpy.ndarray):
-		'''Calculates how well the signal was reconstructed for each pair of data in \'signal\', \'reconstructed\' arrays.'''
-		shape = signal.shape
-		data_signal_tiles = numpy.array([])
-		data_wrong_reconstruction_tiles = numpy.array([])
-		data_residue_noise_intensity = numpy.array([])
-		interesting_indices = []
-
-		for k in range(shape[0]):
-			rec_matrix, sgn_matrix = numpy.reshape(reconstructed[k], (shape[1], shape[2])), numpy.reshape(signal[k], (shape[1], shape[2]) )
-
-			rec_matrix_dscr, sgn_matrix_dscr = rec_matrix, sgn_matrix
-			#rec_matrix_dscr, sgn_matrix_dscr = numpy.where(rec_matrix > threshold, 1, 0), numpy.where(sgn_matrix > threshold, 1, 0)
-			mask = sgn_matrix_dscr>0.1
-
-			rows, cols = mask.nonzero()
-			n = rows.size
-			for i in range(n):	#add signal neighbours to mask
-				row, col = rows[i], cols[i]
-				if row > 0 and col > 0:	mask[row-1, col-1] = True
-				if row > 0:	mask[row-1, col] = True
-				if row > 0 and col < shape[2]-1:	mask[row-1, col+1] = True
-				if col < shape[2]-1:	mask[row, col+1] = True
-				if col < shape[2]-1 and row < shape[1]-1:	mask[row+1, col+1] = True
-				if row < shape[1]-1:	mask[row+1, col] = True
-				if row < shape[1]-1 and col > 0:	mask[row+1, col-1] = True
-				if col > 0:	mask[row, col-1] = True
-
-			num_sgn = numpy.sum(sgn_matrix_dscr)
-			num_wrong_reconstr = numpy.sum( numpy.abs(rec_matrix_dscr[mask] - sgn_matrix_dscr[mask]) )
-			data_signal_tiles = numpy.append(data_signal_tiles, num_sgn)
-			if num_wrong_reconstr / num_sgn > 0.5:
-				interesting_indices.append(k)
-			data_wrong_reconstruction_tiles = numpy.append(data_wrong_reconstruction_tiles, num_wrong_reconstr)
-			data_residue_noise_intensity = numpy.append(data_residue_noise_intensity, numpy.sum(rec_matrix[mask==False]) )
-
-			if k % 1000 == 999:
-				print(k+1, "/", shape[0])
-			
-			#visualisation for testing only
-			'''if num_wrong_reconstr / num_sgn >= 1:
-				fig, ax = matplotlib.pyplot.subplots(2,2)
-				ax[0,0].imshow(sgn_matrix, cmap='gray')
-				ax[0,0].set_title("signal")
-				ax[1,0].imshow(rec_matrix, cmap='gray')
-				ax[1,0].set_title("reconstructed")
-				ax[1,1].imshow(rec_matrix_dscr, cmap='gray')
-				ax[1,1].set_title("reconstructed discr")
-				ax[0,1].imshow(sgn_matrix_dscr, cmap='gray')
-				ax[0,1].set_title("sign discr")
-				matplotlib.pyplot.show()
-			'''
-		return {"signal": data_signal_tiles, "false_signal": data_wrong_reconstruction_tiles, "noise": data_residue_noise_intensity}, interesting_indices
-
-
-	def filteredNoise(signal :numpy.ndarray, reconstructed :numpy.ndarray):
-		'''Calculates how well the noise was filtered for each pair of data in \'signal\', \'reconstructed\' arrays.'''
-		shape = signal.shape
-		metric_data = []
-
-		def metric(sgn, rec):	return numpy.sum(numpy.abs(sgn - rec))
-
-		for n in range(shape[0]):
-			if n % 100 == 0:	print(n, "/", shape[0])
-			rec_matrix, sgn_matrix = reconstructed[n], signal[n]
-			mask = sgn_matrix < 0.1
-			mtr = metric(sgn_matrix[mask], rec_matrix[mask])
-			metric_data.append(mtr)
-			#print(metric(sgn_matrix[mask], rec_matrix[mask]))
-			#Testing.test_QualityEstimator_reconstructedSignals(rec_matrix, sgn_matrix)
-		return metric_data

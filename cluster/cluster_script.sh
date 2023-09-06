@@ -11,7 +11,7 @@ rm -fr $DATADIR/histories/*
 
 test -n "$SCRATCHDIR" || { echo >&2 "Variable SCRATCHDIR is not set!"; exit 1; }
 
-cp -r $DATADIR/cluster/run_several_architectures.py $DATADIR/cluster/architectures_list.py $SCRATCHDIR
+cp -r $DATADIR/cluster/run_several_architectures.py $DATADIR/cluster/architectures_list.py $DATADIR/cluster/denoise_traces.py $SCRATCHDIR
 cd $SCRATCHDIR
 
 mkdir ./models

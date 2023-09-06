@@ -1,4 +1,3 @@
-from denoise_traces_cls import DataLoader, Plotting
 import numpy
 from tensorflow import keras
 import keras.utils
@@ -6,12 +5,11 @@ import json
 import os
 import matplotlib.pyplot
 import matplotlib.animation
-import X17_data_load_cls
 import tensorflow
 import copy
+from denoise_traces import DataLoader, Plotting, ModelWrapper
 
-
-DATAPATH = "/data/simulated/3D/"
+DATAPATH = None
 
 def plotHistory(out_path :str, model_name :str):
 	f = open(out_path + "history.json", "r")
@@ -30,13 +28,12 @@ def plotHistory(out_path :str, model_name :str):
 	matplotlib.pyplot.clf()
 
 
-def specialInputs(model :keras.Model, out_path :str):
+def specialInputs(modelAPI :ModelWrapper, out_path :str):
 	special_inputs = [numpy.zeros((12,14,208)), numpy.ones((12,14,208)), numpy.pad(numpy.ones((1,1,208)), [(5,6), (6,7), (0,0)])]
 	titles = ["Output of Zero Tensor", "Output of Ones Tensor", "Output of Central Line"]
 	filenames = ["zeros.pdf", "ones.pdf", "line.pdf"]
 	for i in range(3):
-		neural_input = numpy.reshape(special_inputs[i], (1,12,14,208,1))
-		reconstruction = numpy.reshape( model(neural_input)[0], (12,14,208))
+		reconstruction = modelAPI.evaluateSingleEvent(special_inputs[i])
 		fig, ax = matplotlib.pyplot.subplots(3, 2)
 		ax[0,0].imshow(numpy.sum(special_inputs[i], axis=0), cmap="gray", vmin=0, vmax=1)
 		ax[0,0].set_title("Input, ZY Projection")
@@ -74,48 +71,48 @@ def specialInputs(model :keras.Model, out_path :str):
 		matplotlib.pyplot.close()
 
 
-def plotExamples(model :keras.Model, out_path :str, model_name :str, threshold :float):
-	x17 = [event for (_, event) in X17_data_load_cls.loadX17Data("goodtracks")]
+def plotExamples(modelAPI :ModelWrapper, out_path :str):
+	data_loader = DataLoader("/data/")
+	x17 = [event for (_, event) in data_loader.loadX17Data("goodtracks")]
 	example_indices = [0, 12, 21, 33]
 	for i in range(4):
 		noisy = x17[example_indices[i]]
 		noisy = noisy / numpy.max(noisy)
-		noisy_input = numpy.reshape( noisy, (1,12,14,208,1))
 
-		reconstr = numpy.reshape(model(noisy_input)[0], (12,14,208))
-		classificated = numpy.where(reconstr > threshold, 1, 0)
-		Plotting.plotEvent(noisy, reconstr, classificated, True, model_name)
+		reconstr = modelAPI.evaluateSingleEvent(noisy)
+		classificated = modelAPI.classify(reconstr)
+		Plotting.plotEvent(noisy, reconstr, classificated, True, modelAPI.name)
 		matplotlib.pyplot.savefig(out_path + "example_reconstruction" + str(i) + ".pdf", bbox_inches="tight")
 		matplotlib.pyplot.clf()
 
-		Plotting.animation3D(out_path + "example_reconstruction_3D_" + str(i) + ".gif", model, noisy, True, model_name, threshold)
+		Plotting.animation3D(out_path + "example_reconstruction_3D_" + str(i) + ".gif", modelAPI, noisy, True)
 		matplotlib.pyplot.clf()
 
 
-def plotModelArchitecture(model :keras.Model, out_path :str):
-	keras.utils.plot_model(model, to_file= out_path + "architecture.png", show_shapes=True, show_layer_names=False, show_layer_activations=True)
+def plotModelArchitecture(modelAPI :ModelWrapper, out_path :str):
+	keras.utils.plot_model(modelAPI.model, to_file= out_path + "architecture.png", show_shapes=True, show_layer_names=False, show_layer_activations=True)
 	with open(out_path + "architecture.txt", "w") as f:
-		model.summary(print_fn = lambda x: print(x, file=f))
+		modelAPI.model.summary(print_fn = lambda x: print(x, file=f))
 
 
-def getBatchReconstruction(model, threshold, index):
-	signals = numpy.load(DATAPATH + str(index) + "_signal_3d.npy")
-	noises = numpy.load(DATAPATH + str(index) + "_noise_3d.npy")
+def getBatchReconstruction(modelAPI :ModelWrapper, index :int):
+	signals = numpy.load(DATAPATH + "simulated/3D/" + str(index) + "_signal_3d.npy")
+	noises = numpy.load(DATAPATH + "simulated/3D/" + str(index) + "_noise_3d.npy")
 
 	signals_map = signals > 0.0001
 
 	all_signal_tiles = numpy.sum( numpy.where(signals > 0.0001, 1, 0), axis=(1,2,3) )
 	all_noise_tiles = numpy.sum( numpy.where(noises > 0.0001, 1, 0), axis=(1,2,3) ) - all_signal_tiles
 
-	reconstructions = numpy.reshape( model.predict( numpy.reshape(noises, (*noises.shape, 1)) ), noises.shape)
-	classificated = numpy.where(reconstructions > threshold, 1, 0)
+	reconstructions = modelAPI.evaluateBatch(noises)
+	classificated = modelAPI.classify(reconstructions)
 
 	reconstructed_signal_tiles = numpy.sum( numpy.where( signals_map, classificated, 0), axis=(1,2,3) )
 	reconstructed_noise_tiles = numpy.sum( classificated, axis=(1,2,3) ) - reconstructed_signal_tiles
 
 	return reconstructed_signal_tiles / all_signal_tiles, reconstructed_noise_tiles / all_noise_tiles
 
-def plotMetrics(model, path, model_name, threshold):
+def plotMetrics(modelAPI, out_path):
 	title_rec = "Histogram of Mean Absolute Error of Reconstructed Signal Tiles\n by Model " + model_name
 	title_noise = "Histogram of Remaining Noise Sum in Reconstructions\n by Model " + model_name
 	xlabel_rec = "MAE of Reconstruction from Signal"
@@ -127,18 +124,18 @@ def plotMetrics(model, path, model_name, threshold):
 
 	for i in range(0, num):
 		print(i+1, "/", num)
-		batch_reconstructed_signal_metric, batch_reconstructed_noise_metric = getBatchReconstruction(model, threshold, i+low)
+		batch_reconstructed_signal_metric, batch_reconstructed_noise_metric = getBatchReconstruction(modelAPI, i+low)
 		
 		for j in range(5000):
 				reconstructed_signal_metric[j+5000*i] = batch_reconstructed_signal_metric[j]
 				reconstructed_noise_metric[j+5000*i] = batch_reconstructed_noise_metric[j]
 
-		f = open(path + "signal_metric.txt", "w")
+		f = open(out_path + "signal_metric.txt", "w")
 		for val in reconstructed_signal_metric:
 			f.write(str(val) + "\n")
 		f.close()
 
-		f = open(path + "noise_metric.txt", "w")
+		f = open(out_path + "noise_metric.txt", "w")
 		for val in reconstructed_noise_metric:
 			f.write(str(val) + "\n")
 		f.close()
@@ -148,14 +145,14 @@ def plotMetrics(model, path, model_name, threshold):
 		matplotlib.pyplot.xlabel(xlabel_rec)
 		matplotlib.pyplot.ylabel(r"$\#$")
 		matplotlib.pyplot.xlim(0, 1)
-		matplotlib.pyplot.savefig(path + "hist_signal_metric.pdf")
+		matplotlib.pyplot.savefig(out_path + "hist_signal_metric.pdf")
 		matplotlib.pyplot.clf()
 		matplotlib.pyplot.hist(reconstructed_noise_metric, bins=70, range=(0,1), log=False)
 		matplotlib.pyplot.title(title_noise)
 		matplotlib.pyplot.xlabel(xlabel_noise)
 		matplotlib.pyplot.ylabel(r"$\#$")
 		matplotlib.pyplot.xlim(0, 1)
-		matplotlib.pyplot.savefig(path + "hist_noise_metric.pdf")
+		matplotlib.pyplot.savefig(out_path + "hist_noise_metric.pdf")
 		matplotlib.pyplot.clf()
 
 	fixed_cmap = copy.copy(matplotlib.cm.get_cmap('magma'))
@@ -165,7 +162,7 @@ def plotMetrics(model, path, model_name, threshold):
 	matplotlib.pyplot.xlabel("Ratio of reconstructed signal")
 	matplotlib.pyplot.ylabel("Ratio of unfiltered noise")
 	matplotlib.pyplot.suptitle("2D Log Norm Histogram Of Reconstruction Quality Metrics\n Model " + model_name)
-	matplotlib.pyplot.savefig(path + "hist_2d.pdf", bbox_inches='tight')
+	matplotlib.pyplot.savefig(out_path + "hist_2d.pdf", bbox_inches='tight')
 	matplotlib.pyplot.clf()
 	
 	'''
@@ -175,13 +172,13 @@ def plotMetrics(model, path, model_name, threshold):
 		num_noise_tiles = numpy.sum( numpy.where(noise > 0.0001, 1, 0) ) - num_signal_tiles
 	'''
 
-def findThreshold(model, optimisedFunc):
+def findThreshold(modelAPI :ModelWrapper, optimisedFunc):
 	'''
 	Find classification threshold for @model which maximises @optimisedFunc. Return the optimal threshold and dictionary of metrics for various thresholds.
 	'''
 
-	signals = numpy.load(DATAPATH + "/10_signal_3d.npy")
-	noises = numpy.load(DATAPATH + "/10_noise_3d.npy")
+	signals = numpy.load(DATAPATH + "simulated/3D/10_signal_3d.npy")
+	noises = numpy.load(DATAPATH + "simulated/3D/10_noise_3d.npy")
 	data_num = signals.shape[0]
 	signals_map = signals>0.0001
 
@@ -193,7 +190,7 @@ def findThreshold(model, optimisedFunc):
 		num_noise[i] = numpy.sum( numpy.where(noises[i] > 0.0001, 1, 0) ) - num_sgn[i]
 
 	print(">> Reconstructing testing data...")
-	reconstructions = numpy.reshape( model.predict( numpy.reshape(noises, (*noises.shape, 1)) ), noises.shape)
+	reconstructions = modelAPI.evaluateBatch(noises)
 
 	print(">> Trying several thresholds:")
 	num_steps = 100
@@ -262,10 +259,10 @@ def plotThresholdPlots(thresholds, signal_metrics, noise_metrics, optimised_func
 
 def postprocessModel(out_path, model_name):
 	print("> Loading model...")
-	model = keras.models.load_model(out_path + "model")
+	modelAPI = ModelWrapper( keras.models.load_model(out_path + "model"), model_name )
 
 	print("> Plotting model architecture...")
-	plotModelArchitecture(model, out_path)
+	plotModelArchitecture(modelAPI, out_path)
 
 	threshold = None
 	try:
@@ -275,7 +272,7 @@ def postprocessModel(out_path, model_name):
 	except:
 		print("> Finding optimal classification threshold...")
 		def optimisedFunc(signal_metric, noise_metric):	return signal_metric - noise_metric
-		threshold, history = findThreshold(model, optimisedFunc)
+		threshold, history = findThreshold(modelAPI, optimisedFunc)
 		plotThresholdPlots(history["thresholds"], history["signal_metrics"], history["noise_metrics"], history["optimised_func_values"], out_path)
 
 		print("> Best threshold is", threshold)
@@ -283,21 +280,24 @@ def postprocessModel(out_path, model_name):
 		f.write( str(threshold) )
 		f.close()
 
+	modelAPI.threshold = threshold
+
 	print("> Plotting reconstruction quality histograms...")
-	plotMetrics(model, out_path, model_name, threshold)
+	plotMetrics(modelAPI, out_path)
 
 	print("> Plotting examples of reconstruction...")
-	plotExamples(model, out_path, model_name, threshold)
+	plotExamples(modelAPI, out_path)
 
 
 	print("> Plotting model training history...")
-	plotHistory(out_path, model_name)
+	plotHistory(out_path, modelAPI.name)
 
 	print("> Evaluating special inputs...")
-	specialInputs(model, out_path)
+	specialInputs(modelAPI, out_path)
 
 
-
+DATAPATH = input("Path to root data directory: ")
+if DATAPATH[-1] != "/":	DATAPATH += "/"
 
 name = input("Model name: ")
 if name == "ALL":
