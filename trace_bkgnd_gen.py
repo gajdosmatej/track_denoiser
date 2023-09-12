@@ -79,11 +79,9 @@ class Generator:
 
 		for _ in range(num_steps):
 			if self.isCoordOutOfBounds(position):	break
-			self.space[self.discretise(position)] += 1
+			self.space[self.discretise(position)] = 1
 			if numpy.random.random() < self.SIGNAL_CHANGE_DIRECTION_PROBABILITY:	self.updateDirection(direction)
 			position += direction
-		coord = numpy.nonzero(self.space)	#visited coordinates
-		self.space[coord] *= numpy.clip( numpy.random.normal(self.SIGNAL_ENERGY, 0.6*self.SIGNAL_ENERGY, coord[0].shape), 0, None)
 
 	def addNoise(self):
 		'''Adds several noise tracks into the input 3D array space.'''
@@ -91,13 +89,14 @@ class Generator:
 		for _ in range(num_of_traces):
 			position = (numpy.array(self.DIMENSIONS) - 1) * numpy.random.random(size=3)
 			steps = numpy.random.randint(1, self.MAX_NOISE_STEPS)
-			direction = numpy.random.random(3) * self.DIRECTION_NORMS
+			direction = numpy.random.uniform(-1,1) * self.DIRECTION_NORMS
 			for _ in range(steps):
 				self.space[self.discretise(position)] += numpy.clip( numpy.random.normal(loc=self.NOISE_MEAN_ENERGY, scale=self.NOISE_SIGMA_ENERGY), 0, None)
 				position += direction
 				if self.isCoordOutOfBounds(position):	break
 				self.updateDirection(direction)
 
+	#OBSOLETE
 	def genAndDumpData(self, iterations :int):
 		'''Generates space 3D array with one signal and several noises in each iteration and saves the projections of the clean and noised data.'''
 		noise_names = ["_noise_zy", "_noise_zx", "_noise_yx"]
@@ -141,7 +140,12 @@ class Generator:
 				if i % 1000 == 0:	print("{:,}".format(file_i *file_size + i), "/", "{:,}".format(iterations))
 				self.initialise()
 				self.addSignal()
-				data_signal.append(normalise(self.space))
+				data_signal.append(self.space)
+				
+				#add energy to signal tiles
+				coord = numpy.nonzero(self.space)
+				self.space[coord] *= numpy.clip( numpy.random.normal(self.SIGNAL_ENERGY, 0.6*self.SIGNAL_ENERGY, coord[0].shape), 0, None)
+				
 				self.addNoise()
 				data_noise.append(normalise(self.space))
 
@@ -269,6 +273,10 @@ while True:
 	generator.addSignal()
 	Support.show3D(generator.space)
 	Support.showProjections(generator.space, [0,1,2])
+
+	coord = numpy.nonzero(generator.space)
+	generator.space[coord] = numpy.clip( numpy.random.normal(generator.SIGNAL_ENERGY, 0.8*generator.SIGNAL_ENERGY, coord[0].shape), 0, None)
+
 	generator.addNoise()
 	Support.show3D(generator.space)
 	Support.showProjections(generator.space, [0,1,2])

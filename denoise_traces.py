@@ -94,7 +94,7 @@ class DataLoader:
 			numpy.random.shuffle(order)
 			for id in order:
 				signal_batch = numpy.load(self.path + "simulated/3D/" + str(id) + "_signal_3d.npy")
-				signal_batch = numpy.where(signal_batch > 0.001, 1, 0)	#CLASSIFICATION
+				#signal_batch = numpy.where(signal_batch > 0.001, 1, 0)	#CLASSIFICATION
 				noise_batch = numpy.load(self.path + "simulated/3D/" + str(id) + "_noise_3d.npy")
 				for i in range(5000):
 					yield ( numpy.reshape(noise_batch[i], (12,14,208,1)), numpy.reshape(signal_batch[i], (12,14,208,1)))
