@@ -100,14 +100,14 @@ class DataLoader:
 					yield ( numpy.reshape(noise_batch[i], (12,14,208,1)), numpy.reshape(signal_batch[i], (12,14,208,1)))
 
 
-	def getDataset(self, low_id :int, high_id :int):
+	def getDataset(self, low_id :int, high_id :int, batch_size :int):
 		'''
 		Pack the method _dataPairLoad_(@low_id, @high_id) into tensorflow dataset.
 		'''
 		return tensorflow.data.Dataset.from_generator(lambda: self.dataPairLoad(low_id, high_id), output_signature =
 					(	tensorflow.TensorSpec(shape=(12,14,208,1), dtype=tensorflow.float16),
 						tensorflow.TensorSpec(shape=(12,14,208,1), dtype=tensorflow.float16))
-					).batch(100).prefetch(20)
+					).batch(batch_size).prefetch(20)
 
 	def getNoisyBatch(self, experimental :bool = True, file_id :int = 0):
 		'''
