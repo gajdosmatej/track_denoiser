@@ -140,7 +140,7 @@ class Generator:
 				if i % 1000 == 0:	print("{:,}".format(file_i *file_size + i), "/", "{:,}".format(iterations))
 				self.initialise()
 				self.addSignal()
-				data_signal.append(self.space)
+				data_signal.append( numpy.copy(self.space) )
 				
 				#add energy to signal tiles
 				coord = numpy.nonzero(self.space)
