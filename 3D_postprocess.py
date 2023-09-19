@@ -34,9 +34,16 @@ def specialInputs(modelAPI :ModelWrapper, out_path :str):
 	Plot the reconstruction of several special inputs.
 	'''
 	
-	special_inputs = [numpy.zeros((12,14,208)), numpy.ones((12,14,208)), numpy.pad(numpy.ones((1,1,208)), [(5,6), (6,7), (0,0)])]
-	titles = ["Output of Zero Tensor", "Output of Ones Tensor", "Output of Central Line"]
-	filenames = ["zeros.pdf", "ones.pdf", "line.pdf"]
+	special_inputs = [	numpy.zeros((12,14,208)), 
+						numpy.ones((12,14,208)), 
+						numpy.pad(numpy.ones((1,1,208)), [(5,6), (6,7), (0,0)]),
+						numpy.pad(numpy.ones((1,14,1)), [(5,6), (0,0), (103,104)]) ]
+	
+	titles = [	"Output of Zero Tensor", 
+				"Output of Ones Tensor", 
+				"Output of Central z-Line",
+				"Output of Central y-Line"]
+	filenames = ["special_zeros.pdf", "special_ones.pdf", "special_line_z.pdf", "special_line_y.pdf"]
 	for i in range( len(special_inputs) ):
 		reconstruction = modelAPI.evaluateSingleEvent(special_inputs[i])
 		fig, ax = matplotlib.pyplot.subplots(3, 2)
@@ -134,10 +141,10 @@ def plotMetrics(modelAPI :ModelWrapper, out_path :str, datapath :str):
 	Plot histograms of reconstruction metrics.
 	'''
 
-	title_rec = "Histogram of Mean Absolute Error of Reconstructed Signal Tiles\n by Model " + model_name
-	title_noise = "Histogram of Remaining Noise Sum in Reconstructions\n by Model " + model_name
-	xlabel_rec = "MAE of Reconstruction from Signal"
-	xlabel_noise = "Sum of Remaining Noise"
+	title_rec = "Histogram of Event Reconstruction Metric\n by Model " + model_name
+	title_noise = "Histogram of Event Noise Filtering Metric\n by Model " + model_name
+	xlabel_rec = r"$\rho$ (Ratio of reconstructed track tiles)"
+	xlabel_noise = r"$\sigma$ (Ratio of unfiltered noise tiles)"
 
 	num = 10
 	low = 11
@@ -176,13 +183,13 @@ def plotMetrics(modelAPI :ModelWrapper, out_path :str, datapath :str):
 		matplotlib.pyplot.savefig(out_path + "hist_noise_metric.pdf")
 		matplotlib.pyplot.close()
 
-	fixed_cmap = copy.copy(matplotlib.cm.get_cmap('magma'))
+	fixed_cmap = copy.copy(matplotlib.colormaps["gray"])
 	fixed_cmap.set_bad((0,0,0))	#fix pixels with zero occurrence - otherwise problem for LogNorm
 	
 	matplotlib.pyplot.hist2d(reconstructed_signal_metric, reconstructed_noise_metric, [70,70], [[0,1], [0,1]], cmap=fixed_cmap, norm=matplotlib.colors.LogNorm())
-	matplotlib.pyplot.xlabel("Ratio of reconstructed signal")
-	matplotlib.pyplot.ylabel("Ratio of unfiltered noise")
-	matplotlib.pyplot.suptitle("2D Log Norm Histogram Of Reconstruction Quality Metrics\n Model " + model_name)
+	matplotlib.pyplot.xlabel(r"\rho (Ratio of reconstructed signal)")
+	matplotlib.pyplot.ylabel(r"\sigma (Ratio of unfiltered noise)")
+	matplotlib.pyplot.suptitle("2D Log Norm Histogram Of Reconstruction and Filtering Metrics\n Model " + model_name)
 	matplotlib.pyplot.savefig(out_path + "hist_2d.pdf", bbox_inches='tight')
 	matplotlib.pyplot.close()
 	
@@ -256,12 +263,12 @@ def findThreshold(modelAPI :ModelWrapper, optimisedFunc, datapath :str):
 
 def plotThresholdPlots(thresholds, signal_metrics, noise_metrics, optimised_func_values, out_path):
 	#ROC
-	matplotlib.pyplot.plot(noise_metrics, signal_metrics, ".-b")
+	matplotlib.pyplot.plot(noise_metrics, signal_metrics, "blue")
 	matplotlib.pyplot.title("Threshold Classifier ROC for Model " + model_name)
-	matplotlib.pyplot.xlabel("Fraction of Unfiltered Background Tiles")
-	matplotlib.pyplot.ylabel("Fraction of Reconstructed Signal Tiles")
-	matplotlib.pyplot.xlim(0,1)
-	matplotlib.pyplot.ylim(0,1)
+	matplotlib.pyplot.xlabel(r"$\overline{\sigma(D)}$ (Ratio of unfiltered noise tiles)")
+	matplotlib.pyplot.ylabel(r"$\overline{\rho(D)}$ (Ratio of reconstructed track tiles)")
+	matplotlib.pyplot.xlim(-0.05,1)
+	matplotlib.pyplot.ylim(0,1.05)
 	matplotlib.pyplot.savefig(out_path + "ROC.pdf", bbox_inches='tight')
 	matplotlib.pyplot.close()
 	
