@@ -113,14 +113,14 @@ def plotModelArchitecture(modelAPI :ModelWrapper, out_path :str):
 		modelAPI.model.summary(print_fn = lambda x: print(x, file=f))
 
 
-def getBatchReconstruction(modelAPI :ModelWrapper, index :int, datapath :str):
+def getBatchReconstruction(modelAPI :ModelWrapper, index :int, datapath :str, experimental :bool = False):
 	'''
 	Load noisy events from @index datafile, classificate them and return tuple of values of signal reconstruction and noise filtering metrics.
 	'''
 
 	data_loader = DataLoader(datapath)
-	signals = data_loader.getBatch(False, False, index)
-	noises = data_loader.getBatch(False, True, index)
+	signals = data_loader.getBatch(experimental, False, index)
+	noises = data_loader.getBatch(experimental, True, index)
 
 	signals_map = signals > 0.0001
 
@@ -152,7 +152,7 @@ def plotMetrics(modelAPI :ModelWrapper, out_path :str, datapath :str):
 
 	for i in range(0, num):
 		print(i+1, "/", num)
-		batch_reconstructed_signal_metric, batch_reconstructed_noise_metric = getBatchReconstruction(modelAPI, i+low, datapath)
+		batch_reconstructed_signal_metric, batch_reconstructed_noise_metric = getBatchReconstruction(modelAPI, i+low, datapath, False)
 		
 		for j in range(5000):
 				reconstructed_signal_metric[j+5000*i] = batch_reconstructed_signal_metric[j]
@@ -201,14 +201,14 @@ def plotMetrics(modelAPI :ModelWrapper, out_path :str, datapath :str):
 	'''
 
 
-def findThreshold(modelAPI :ModelWrapper, optimisedFunc, datapath :str):
+def findThreshold(modelAPI :ModelWrapper, optimisedFunc, datapath :str, experimental :bool = False):
 	'''
 	Find classification threshold for @model which maximises @optimisedFunc. Return the optimal threshold and dictionary of metrics for various thresholds.
 	'''
 
 	data_loader = DataLoader(datapath)
-	signals = data_loader.getBatch(False, False, 11)
-	noises = data_loader.getBatch(False, True, 11)
+	signals = data_loader.getBatch(experimental, False, 11)
+	noises = data_loader.getBatch(experimental, True, 11)
 	data_num = signals.shape[0]
 	signals_map = signals>0.0001
 
@@ -302,7 +302,7 @@ def postprocessModel(out_path, model_name, datapath):
 	except:
 		print("> Finding optimal classification threshold...")
 		def optimisedFunc(signal_metric, noise_metric):	return signal_metric - noise_metric
-		threshold, history = findThreshold(modelAPI, optimisedFunc, datapath)
+		threshold, history = findThreshold(modelAPI, optimisedFunc, datapath, False)
 		plotThresholdPlots(history["thresholds"], history["signal_metrics"], history["noise_metrics"], history["optimised_func_values"], out_path)
 
 		print("> Best threshold is", threshold)

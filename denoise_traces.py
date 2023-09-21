@@ -132,9 +132,10 @@ class DataLoader:
 
 	def getBatch(self, experimental :bool = True, noisy :bool = True, file_id = 0):
 		if experimental:
-			x17_data = numpy.array( [event for (_, event) in self.loadX17Data("goodtracks", noisy)] )
+			x17_data = [event for (_, event) in self.loadX17Data("goodtracks", noisy)]
 			for (_, event) in self.loadX17Data("othertracks", noisy):
 				x17_data.append(event)
+			x17_data = numpy.array(x17_data)
 			return x17_data / numpy.max(x17_data)	#normalisation to [0,1] interval
 		else:
 			return numpy.load(self.path + "simulated/" + ("noisy/" if noisy else "clean/") + str(file_id) + ".npy")
