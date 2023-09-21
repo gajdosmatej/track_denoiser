@@ -20,7 +20,7 @@ class Generator:
 	SIGNAL_ENERGY = 2	#signal deposits this value in every point of lattice which it visits
 	SIGNAL_CHANGE_DIRECTION_PROBABILITY = 0.1	#the signal probability that updateDirection is called in a step
 	NOISE_TRACKS_NUM_RANGE = (20,50)	#the minimal and maximal number of noise tracks
-	DATA_DIR_PATH = "./data/simulated/"
+	DATA_DIR_PATH = "./data"
 	NOISE_MEAN_ENERGY = 1.4
 	NOISE_SIGMA_ENERGY = 0.6
 	MAX_NOISE_STEPS = 7
@@ -126,11 +126,9 @@ class Generator:
 
 	def genAndDumpData3D(self, iterations :int):
 		'''Generates space 3D array with one signal and several noises in each iteration and saves the clean and noised data.'''
-		noise_name = "_noise_3d"
-		signal_name = "_signal_3d"
 		file_size = 5000
 
-		increment = len(os.listdir(self.DATA_DIR_PATH + "3D")) // 2	#some datafiles might be already in the directory, this ensures they will not be overwritten
+		increment = len(os.listdir(self.DATA_DIR_PATH + "simulated/noisy/")) // 2	#some datafiles might be already in the directory, this ensures they will not be overwritten
 
 		file_num = iterations // file_size
 		for file_i in range(file_num):
@@ -144,15 +142,17 @@ class Generator:
 				
 				#add energy to signal tiles
 				coord = numpy.nonzero(self.space)
-				self.space[coord] *= numpy.clip( numpy.random.normal(self.SIGNAL_ENERGY, 0.6*self.SIGNAL_ENERGY, coord[0].shape), 0, None)
+				self.space[coord] *= numpy.clip( numpy.random.normal(self.SIGNAL_ENERGY, 0.7*self.SIGNAL_ENERGY, coord[0].shape), 0, None)
 				
 				self.addNoise()
 				data_noise.append(normalise(self.space))
 
 			print("Saving batch...")
-			numpy.save(self.DATA_DIR_PATH + "3D/" + str(increment+file_i) + noise_name, data_noise)
-			numpy.save(self.DATA_DIR_PATH + "3D/" + str(increment+file_i) + signal_name, data_signal)
+			numpy.save(self.DATA_DIR_PATH + "simulated/noisy/" + str(increment+file_i) + ".npy", data_noise)
+			numpy.save(self.DATA_DIR_PATH + "simulated/clean/" + str(increment+file_i) + ".npy", data_signal)
 
+#OBSOLETE
+'''
 class Support:
 	@staticmethod
 	def showProjection(space :numpy.ndarray, axis :int):
@@ -162,7 +162,7 @@ class Support:
 
 	@staticmethod
 	def showProjections(space :numpy.ndarray, indices :int):
-		'''Shows chosen plots (by indices) of the space projections into the xy, yz and zx planes.'''
+		''Shows chosen plots (by indices) of the space projections into the xy, yz and zx planes.''
 		if len(indices) == 1:
 			Support.showProjection(space, indices[0])
 			return
@@ -177,7 +177,7 @@ class Support:
 
 	@staticmethod
 	def showRandomDataFromFile(num_pics : int):
-		'''Shows some random data from datafile.'''
+		''Shows some random data from datafile.''
 		global datapath
 		zy_projections = numpy.load(datapath + "data_noise_zy.npy")
 		zx_projections = numpy.load(datapath + "data_noise_zx.npy")
@@ -214,7 +214,7 @@ class Support:
 
 	@staticmethod
 	def show3D(space :numpy.ndarray):
-		'''Shows 3D scatter plot of the input space.'''
+		''Shows 3D scatter plot of the input space.''
 		xs, ys, zs = space.nonzero()
 		vals = numpy.array([space[xs[i],ys[i],zs[i]] for i in range(len(xs))])
 		fig = matplotlib.pyplot.figure()
@@ -229,7 +229,7 @@ class Support:
 		cb = fig.colorbar(sctr, ax=ax)
 		cb.set_label("$E$")
 		matplotlib.pyplot.show()
-
+'''
 
 num_gen, is_3D, path = None, None, None
 bool_n, bool_t, bool_p = False, False, False

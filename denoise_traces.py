@@ -45,6 +45,11 @@ class ModelWrapper:
 
 
 	def classify(self, raw_reconstruction :numpy.ndarray):
+		'''
+		Classify a reconstructed event by classification threshold.
+		@raw_reconstruction ... Event outputed by this model.
+		'''
+		
 		return numpy.where(raw_reconstruction > self.threshold, 1, 0)
 
 
@@ -56,7 +61,7 @@ class DataLoader:
 		self.path = path + ('/' if path[-1] != '/' else '')
 
 
-	def loadX17Data(self, track_type :str):
+	def loadX17Data(self, track_type :str, noisy :bool):
 		'''
 		Parse X17 data from txt file into list of tuples (event name, 3D event array).
 		@track_type: "goodtracks" or "othertracks"
@@ -76,8 +81,10 @@ class DataLoader:
 			E = int(line)
 			return (x, y, z, E)
 
-		for f_name in os.listdir(self.path + "x17/" + track_type):
-			file = open(self.path + "x17/" + track_type + "/" + f_name, 'r')
+		path = self.path + "x17/" + ("noisy/" if noisy else "clean/") + track_type
+
+		for f_name in os.listdir(path):
+			file = open(path + "/" + f_name, 'r')
 			space = numpy.zeros((12,14,208))
 			for line in file:
 				x, y, z, E = parseX17Line(line)
@@ -93,9 +100,9 @@ class DataLoader:
 			order = numpy.arange(low_id, high_id)
 			numpy.random.shuffle(order)
 			for id in order:
-				signal_batch = numpy.load(self.path + "simulated/3D/" + str(id) + "_signal_3d.npy")
+				signal_batch = numpy.load(self.path + "simulated/clean/" + str(id) + ".npy")
 				#signal_batch = numpy.where(signal_batch > 0.001, 1, 0)	#CLASSIFICATION
-				noise_batch = numpy.load(self.path + "simulated/3D/" + str(id) + "_noise_3d.npy")
+				noise_batch = numpy.load(self.path + "simulated/noisy/" + str(id) + ".npy")
 				for i in range(5000):
 					yield ( numpy.reshape(noise_batch[i], (12,14,208,1)), numpy.reshape(signal_batch[i], (12,14,208,1)))
 
@@ -109,21 +116,34 @@ class DataLoader:
 						tensorflow.TensorSpec(shape=(12,14,208,1), dtype=tensorflow.float16))
 					).batch(batch_size).prefetch(20)
 
+	'''
+	#OBSOLETE
 	def getNoisyBatch(self, experimental :bool = True, file_id :int = 0):
-		'''
+		''
 		Return a list of noisy data. If @experimental is True, return real data from X17 experiment, otherwise generated data are used from file specified by $file_id.
-		'''
+		''
 		
 		if experimental:
 			x17_data = numpy.array( [event for (_, event) in self.loadX17Data("goodtracks")] )
 			return x17_data / numpy.max(x17_data)	#normalisation to [0,1] interval
 		else:
-			return numpy.load(self.path + str(file_id) + "_noise_3d.npy")
+			return numpy.load(self.path + "simulated/noisy/" + str(file_id) + ".npy")
+	'''
+
+	def getBatch(self, experimental :bool = True, noisy :bool = True, file_id = 0):
+		if experimental:
+			x17_data = numpy.array( [event for (_, event) in self.loadX17Data("goodtracks", noisy)] )
+			for (_, event) in self.loadX17Data("othertracks", noisy):
+				x17_data.append(event)
+			return x17_data / numpy.max(x17_data)	#normalisation to [0,1] interval
+		else:
+			return numpy.load(self.path + "simulated/" + ("noisy/" if noisy else "clean/") + str(file_id) + ".npy")
+
 
 
 class Plotting:
 	@staticmethod
-	def plotEvent(noisy, reconstruction, classificated = None, are_data_experimental = None, model_name = '', axes=[0,1,2], use_log :bool = False):
+	def plotEvent(noisy, reconstruction, classificated = None, are_data_experimental = None, model_name = '', axes=[0,1,2], use_log :bool = False, event_name :str = None):
 		'''
 		Create plot of track reconstruction.
 		@noisy ... Noisy event tensor.
@@ -169,8 +189,48 @@ class Plotting:
 		title = "Reconstruction of "
 		if are_data_experimental:	title += "Experimental "
 		elif are_data_experimental is False:	title += "Generated "
-		title += "Data by Model " + model_name
+		title += "Data "
+		if event_name is not None:	title += "(" + event_name + ") "
+		title += "by Model " + model_name
 		fig.suptitle(title)
+	
+
+	@staticmethod
+	def plotEventOneAxis(modelAPI :ModelWrapper, noise_data :numpy.ndarray, axis :int, are_data_experimental :bool = None, event_name :str = None):
+		x_labels = ['z', 'z', 'y']
+		y_labels = ['y', 'x', 'x']
+		
+		reconstructed = modelAPI.evaluateSingleEvent(noise_data)
+
+		if modelAPI.threshold is not None:
+			classified = modelAPI.classify(reconstructed)
+			fig, ax = matplotlib.pyplot.subplots(3)
+		else:
+			fig, ax = matplotlib.pyplot.subplots(2)
+		
+		ax[0].set_title("Noisy")
+		ax[0].imshow(numpy.sum(noise_data, axis=axis), cmap="gray")
+		ax[0].set_xlabel(x_labels[axis])
+		ax[0].set_ylabel(y_labels[axis])
+		ax[1].set_title("Raw Reconstruction")
+		ax[1].imshow(numpy.sum(reconstructed, axis=axis), cmap="gray")
+		ax[1].set_xlabel(x_labels[axis])
+		ax[1].set_ylabel(y_labels[axis])
+
+		if modelAPI.threshold is not None:
+			ax[2].set_title("After Threshold")
+			ax[2].imshow(numpy.sum(classified, axis=axis), cmap="gray")
+			ax[2].set_xlabel(x_labels[axis])
+			ax[2].set_ylabel(y_labels[axis])
+			
+		title = "Reconstruction of "
+		if are_data_experimental:	title += "Experimental "
+		elif are_data_experimental is False:	title += "Generated "
+		title += "Data "
+		if event_name is not None:	title += "(" + event_name + ") "
+		title += "by Model " + modelAPI.name
+		fig.suptitle(title)
+
 
 	@staticmethod
 	def plotRandomData(modelAPI :ModelWrapper, noise_data :numpy.ndarray, are_data_experimental :bool = None, axes :list = [0,1,2], use_log :bool = False):
@@ -191,7 +251,7 @@ class Plotting:
 			if input("Enter 'q' to stop plotting (or anything else for another plot):") == "q":	break
 	
 	@staticmethod
-	def getPlot3D(modelAPI :ModelWrapper, noise_event :numpy.ndarray, are_data_experimental :bool = None, rotation=(0,0,0)):
+	def getPlot3D(modelAPI :ModelWrapper, noise_event :numpy.ndarray, are_data_experimental :bool = None, rotation=(0,0,0), event_name :str = None):
 		'''
 		Return 3D plot of @noise_event and its reconstruction by @model.
 		@model ... Keras model reconstructing track in this plot.
@@ -207,7 +267,7 @@ class Plotting:
 		ax1 = fig.add_subplot(1, 2, 1, projection='3d')
 		xs, ys, zs = noise_event.nonzero()
 		vals = numpy.array([noise_event[xs[i],ys[i],zs[i]] for i in range(len(xs))])
-		sctr1 = ax1.scatter(xs, ys, zs, c=vals, cmap="plasma")
+		sctr1 = ax1.scatter(xs, ys, zs, c=vals, cmap="plasma", marker="s", s=80)
 		ax1.set_xlim(0, 11)
 		ax1.set_xlabel("$x$")
 		ax1.set_ylim(0, 13)
@@ -217,16 +277,17 @@ class Plotting:
 		title = title = "Noisy "
 		if are_data_experimental:	title += "Experimental "
 		elif are_data_experimental is False:	title += "Generated "
+		if event_name is not None:	title += "(" + event_name + ") "
 		title += "Data"
 		ax1.set_title(title)
 		ax1.view_init(*rotation)	#rotate the scatter plot, useful for animation
 
-		reconstr_event = modelAPI.evaluateSingleEvent(noise_event)
+		reconstr_event = modelAPI.evaluateSingleEvent( noise_event / (numpy.max(noise_event) if numpy.max(noise_event) != 0 else 1) )
 		classificated_event = modelAPI.classify(reconstr_event)
 		ax2 = fig.add_subplot(1, 2, 2, projection='3d')
 		xs, ys, zs = classificated_event.nonzero()
 		vals = numpy.array([classificated_event[xs[i],ys[i],zs[i]] for i in range(len(xs))])
-		sctr2 = ax2.scatter(xs, ys, zs, c=vals)
+		sctr2 = ax2.scatter(xs, ys, zs, c=vals, marker="s", s=80)
 		ax2.set_xlim(0, 11)
 		ax2.set_xlabel("$x$")
 		ax2.set_ylim(0, 13)

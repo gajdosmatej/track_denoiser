@@ -82,21 +82,20 @@ def specialInputs(modelAPI :ModelWrapper, out_path :str):
 		matplotlib.pyplot.close()
 
 
-def plotExamples(modelAPI :ModelWrapper, out_path :str):
+def plotExamples(modelAPI :ModelWrapper, out_path :str, datapath :str):
 	'''
 	Plot few examples of track reconstruction.
 	'''
 
-	data_loader = DataLoader("/data/")
-	x17 = [event for (_, event) in data_loader.loadX17Data("goodtracks")]
+	data_loader = DataLoader(datapath)
+	x17 = [event for (_, event) in data_loader.loadX17Data("goodtracks", True)]
 	example_indices = [0, 12, 21, 33]
 	for i in range(4):
 		noisy = x17[example_indices[i]]
-		noisy = noisy / numpy.max(noisy)
 
-		reconstr = modelAPI.evaluateSingleEvent(noisy)
+		reconstr = modelAPI.evaluateSingleEvent(noisy / numpy.max(noisy))
 		classificated = modelAPI.classify(reconstr)
-		Plotting.plotEvent(noisy, reconstr, classificated, True, modelAPI.name)
+		Plotting.plotEvent(noisy / numpy.max(noisy), reconstr, classificated, True, modelAPI.name)
 		matplotlib.pyplot.savefig(out_path + "example_reconstruction" + str(i) + ".pdf", bbox_inches="tight")
 		matplotlib.pyplot.close()
 
@@ -119,8 +118,9 @@ def getBatchReconstruction(modelAPI :ModelWrapper, index :int, datapath :str):
 	Load noisy events from @index datafile, classificate them and return tuple of values of signal reconstruction and noise filtering metrics.
 	'''
 
-	signals = numpy.load(datapath + "simulated/3D/" + str(index) + "_signal_3d.npy")
-	noises = numpy.load(datapath + "simulated/3D/" + str(index) + "_noise_3d.npy")
+	data_loader = DataLoader(datapath)
+	signals = data_loader.getBatch(False, False, index)
+	noises = data_loader.getBatch(False, True, index)
 
 	signals_map = signals > 0.0001
 
@@ -187,8 +187,8 @@ def plotMetrics(modelAPI :ModelWrapper, out_path :str, datapath :str):
 	fixed_cmap.set_bad((0,0,0))	#fix pixels with zero occurrence - otherwise problem for LogNorm
 	
 	matplotlib.pyplot.hist2d(reconstructed_signal_metric, reconstructed_noise_metric, [70,70], [[0,1], [0,1]], cmap=fixed_cmap, norm=matplotlib.colors.LogNorm())
-	matplotlib.pyplot.xlabel(r"\rho (Ratio of reconstructed signal)")
-	matplotlib.pyplot.ylabel(r"\sigma (Ratio of unfiltered noise)")
+	matplotlib.pyplot.xlabel(r"$\rho$ (Ratio of reconstructed signal)")
+	matplotlib.pyplot.ylabel(r"$\sigma$ (Ratio of unfiltered noise)")
 	matplotlib.pyplot.suptitle("2D Log Norm Histogram Of Reconstruction and Filtering Metrics\n Model " + model_name)
 	matplotlib.pyplot.savefig(out_path + "hist_2d.pdf", bbox_inches='tight')
 	matplotlib.pyplot.close()
@@ -206,8 +206,9 @@ def findThreshold(modelAPI :ModelWrapper, optimisedFunc, datapath :str):
 	Find classification threshold for @model which maximises @optimisedFunc. Return the optimal threshold and dictionary of metrics for various thresholds.
 	'''
 
-	signals = numpy.load(datapath + "simulated/3D/10_signal_3d.npy")
-	noises = numpy.load(datapath + "simulated/3D/10_noise_3d.npy")
+	data_loader = DataLoader(datapath)
+	signals = data_loader.getBatch(False, False, 11)
+	noises = data_loader.getBatch(False, True, 11)
 	data_num = signals.shape[0]
 	signals_map = signals>0.0001
 
@@ -315,7 +316,7 @@ def postprocessModel(out_path, model_name, datapath):
 	plotMetrics(modelAPI, out_path, datapath)
 
 	print("> Plotting examples of reconstruction...")
-	plotExamples(modelAPI, out_path)
+	plotExamples(modelAPI, out_path, datapath)
 
 
 	print("> Plotting model training history...")
