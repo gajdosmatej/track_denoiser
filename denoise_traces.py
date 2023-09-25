@@ -139,6 +139,12 @@ class DataLoader:
 			return x17_data / numpy.max(x17_data)	#normalisation to [0,1] interval
 		else:
 			return numpy.load(self.path + "simulated/" + ("noisy/" if noisy else "clean/") + str(file_id) + ".npy")
+	
+	def getX17Names(self):
+		names = []
+		for (name, _) in self.loadX17Data("goodtracks", False):	names.append(name)
+		for (name, _) in self.loadX17Data("othertracks", False):	names.append(name)
+		return names
 
 
 
