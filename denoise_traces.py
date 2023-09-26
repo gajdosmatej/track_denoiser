@@ -9,6 +9,10 @@ import os
 
 
 def normalise(event :numpy.ndarray):
+	'''
+	Linearly map @event to [0,1] interval.
+	'''
+
 	M = numpy.max(event)
 	if M == 0:	return event
 	return event / M
@@ -23,6 +27,10 @@ class ModelWrapper:
 
 	@staticmethod
 	def loadPostprocessed(path :str, model_name :str):
+		'''
+		Return new instance of ModelWrapper class initiated by the files in @path directory.
+		'''
+
 		if path[-1] != "/":	path += "/"
 		threshold_f = open(path + "threshold.txt", "r")
 		threshold = float( threshold_f.read() )
@@ -30,6 +38,10 @@ class ModelWrapper:
 
 
 	def evaluateSingleEvent(self, event :numpy.ndarray):
+		'''
+		Return Model(@event) for one single event.
+		'''
+
 		reshaped = numpy.reshape(event, (1, *event.shape, 1))
 		result = self.model(reshaped)
 		result = result[0]
@@ -37,16 +49,28 @@ class ModelWrapper:
 
 
 	def evaluateBatch(self, events :numpy.ndarray):
+		'''
+		Return Model(@events), where @events is a batch of inputs.
+		'''
+
 		reshaped = numpy.reshape(events, (*events.shape, 1))
 		results = self.model.predict(reshaped)
 		return numpy.reshape(results, events.shape)
 
 
 	def save(self, path :str):
+		'''
+		Save this model to @path.
+		'''
+
 		keras.models.save_model(self.model, path)
 
 
 	def hasThreshold(self):
+		'''
+		Check, whether this object has defined classification threshold.
+		'''
+
 		return self.threshold != None
 
 
@@ -64,6 +88,11 @@ class DataLoader:
 	Class for loading X17 data and generated data in tensorflow datasets.
 	'''
 	def __init__(self, path :str):
+		'''
+		Create a new instance of DataLoader class.
+		@path ... Path to data root directory (it should contain directories "simulated/" and "x17/").
+		'''
+
 		self.path = path + ('/' if path[-1] != '/' else '')
 
 
@@ -102,6 +131,7 @@ class DataLoader:
 		'''
 		Yield a pair of noisy and clean event tensors from numbered data files in between @low_id and @high_id
 		'''
+
 		while True:
 			order = numpy.arange(low_id, high_id)
 			numpy.random.shuffle(order)
@@ -115,31 +145,25 @@ class DataLoader:
 
 	def getDataset(self, low_id :int, high_id :int, batch_size :int):
 		'''
-		Pack the method _dataPairLoad_(@low_id, @high_id) into tensorflow dataset.
+		Pack the method _dataPairLoad_(@low_id, @high_id) into TensorFlow dataset.
 		'''
+
 		return tensorflow.data.Dataset.from_generator(lambda: self.dataPairLoad(low_id, high_id), output_signature =
 					(	tensorflow.TensorSpec(shape=(12,14,208,1), dtype=tensorflow.float16),
 						tensorflow.TensorSpec(shape=(12,14,208,1), dtype=tensorflow.float16))
 					).batch(batch_size).prefetch(20)
 
-	'''
-	#OBSOLETE
-	def getNoisyBatch(self, experimental :bool = True, file_id :int = 0):
-		''
-		Return a list of noisy data. If @experimental is True, return real data from X17 experiment, otherwise generated data are used from file specified by $file_id.
-		''
-		
-		if experimental:
-			x17_data = numpy.array( [event for (_, event) in self.loadX17Data("goodtracks")] )
-			return x17_data / numpy.max(x17_data)	#normalisation to [0,1] interval
-		else:
-			return numpy.load(self.path + "simulated/noisy/" + str(file_id) + ".npy")
-	'''
 
 	def getBatch(self, experimental :bool = True, noisy :bool = True, file_id :int = 0, track_type :str = "alltracks"):
 		'''
-		@track_type: "goodtracks" / "othertracks" / "alltracks" / "midtracks"
+		Get one data batch as numpy array.
+		@experimental: Whether simulated or X17 data should be used.
+		@noisy: Whether noisy or clean data should be used.
+		@file_id: File ID, from which the simulated batch should be loaded (useless for @experimental = True).
+		@track_type: Important only for @experimental = True. Either "goodtracks" (only "data/x17/goodtracks/"), "othertracks" (only "data/x17/othertracks"), "alltracks" (both "data/x17/goodtracks"
+		and "data/x17/othertracks") or "midtracks" (like "alltracks", but filtered those that do not contain a track).
 		'''
+		
 		if experimental:
 			if track_type == "goodtracks":
 				x17_data = []
