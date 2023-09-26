@@ -8,6 +8,12 @@ import copy
 import os
 
 
+def normalise(event :numpy.ndarray):
+	M = numpy.max(event)
+	if M == 0:	return event
+	return event / M
+
+
 class ModelWrapper:
 	def __init__(self, model :keras.Model, model_name :str = "", threshold :float = None):
 		self.model = model
@@ -130,13 +136,42 @@ class DataLoader:
 			return numpy.load(self.path + "simulated/noisy/" + str(file_id) + ".npy")
 	'''
 
-	def getBatch(self, experimental :bool = True, noisy :bool = True, file_id = 0):
+	def getBatch(self, experimental :bool = True, noisy :bool = True, file_id :int = 0, track_type :str = "alltracks"):
+		'''
+		@track_type: "goodtracks" / "othertracks" / "alltracks" / "midtracks"
+		'''
 		if experimental:
-			x17_data = [event for (_, event) in self.loadX17Data("goodtracks", noisy)]
-			for (_, event) in self.loadX17Data("othertracks", noisy):
-				x17_data.append(event)
-			x17_data = numpy.array(x17_data)
-			return x17_data / numpy.max(x17_data)	#normalisation to [0,1] interval
+			if track_type == "goodtracks":
+				x17_data = []
+				for _, event in self.loadX17Data("goodtracks", noisy):
+					x17_data.append( normalise(event) )
+				return numpy.array(x17_data)
+			
+			elif track_type == "othertracks":
+				x17_data = []
+				for _, event in self.loadX17Data("othertracks", noisy):
+					x17_data.append( normalise(event) )
+				return numpy.array(x17_data)
+			
+			elif track_type == "alltracks":
+				return numpy.concatenate( [self.getBatch(True, noisy, track_type="goodtracks"), self.getBatch(True, noisy, track_type="othertracks")], axis=0 )
+			
+			elif track_type == "midtracks":
+				good_enough_indices = [	0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 
+										34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 47, 48, 50, 52, 56, 57, 58, 59, 60, 61, 62, 64, 65, 67, 74, 77, 78, 79, 80, 82, 83, 84, 
+										89, 90, 91, 92, 93, 96, 99, 101, 102, 103, 104, 105, 106, 109, 112, 117, 118, 120, 123, 124, 125, 128, 131, 133, 138, 141, 144, 
+										145, 147, 148, 149, 150, 153, 155, 160, 161, 162, 163, 164, 170, 172, 175, 178, 184, 185, 187, 188, 189, 190, 192, 193, 194, 195, 
+										196, 197, 199, 209, 210, 213, 215, 216, 217, 222, 223, 227, 228, 230, 234, 235, 239, 240, 241, 244, 245, 246, 249, 250, 251, 253, 
+										257, 261, 262, 266, 268, 270, 271, 283, 284, 285, 286, 289, 290, 295, 296, 298, 301, 303, 306, 307, 308, 309, 312, 314, 315, 317, 
+										320, 323, 324, 325, 326, 327, 328, 329, 330, 333, 336, 337, 340, 343, 344, 345, 346, 350, 352, 353, 354, 355, 357, 361, 367, 368, 
+										369, 371, 372, 373, 378, 379, 381, 383, 384, 388, 393, 395, 398, 399, 402, 403, 404, 405, 408, 411, 412, 414, 418, 419, 422, 423, 425, 
+										426, 434, 436, 441, 444, 448, 450, 454, 456, 458, 459, 461, 463, 464, 465, 466, 468, 484, 485, 488, 491, 492, 496, 498, 501, 502, 510, 
+										511, 512, 513, 516, 517, 519, 521, 522, 524, 525, 526, 527, 530, 531, 537, 538, 542, 551, 552, 554, 555, 559, 561, 563, 565, 567, 572, 
+										573, 581, 592, 594, 595, 596, 598, 600, 601, 604, 607, 612, 614, 617, 619, 625, 626, 628, 631, 632, 633, 634, 637, 638, 639, 640]
+				return self.getBatch(True, noisy, track_type="alltracks")[good_enough_indices]
+			
+			else:
+				raise ValueError
 		else:
 			return numpy.load(self.path + "simulated/" + ("noisy/" if noisy else "clean/") + str(file_id) + ".npy")
 	
