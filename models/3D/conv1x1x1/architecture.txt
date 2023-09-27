@@ -1,0 +1,55 @@
+Model: "sequential_1"
+_________________________________________________________________
+ Layer (type)                Output Shape              Param #   
+=================================================================
+ conv3d_13 (Conv3D)          (None, 12, 14, 208, 30)   840       
+                                                                 
+ conv3d_14 (Conv3D)          (None, 12, 14, 208, 1)    31        
+                                                                 
+ max_pooling3d_3 (MaxPooling  (None, 12, 14, 104, 1)   0         
+ 3D)                                                             
+                                                                 
+ conv3d_15 (Conv3D)          (None, 12, 14, 104, 30)   840       
+                                                                 
+ conv3d_16 (Conv3D)          (None, 12, 14, 104, 1)    31        
+                                                                 
+ max_pooling3d_4 (MaxPooling  (None, 12, 14, 52, 1)    0         
+ 3D)                                                             
+                                                                 
+ conv3d_17 (Conv3D)          (None, 12, 14, 52, 30)    840       
+                                                                 
+ conv3d_18 (Conv3D)          (None, 12, 14, 52, 1)     31        
+                                                                 
+ max_pooling3d_5 (MaxPooling  (None, 12, 14, 26, 1)    0         
+ 3D)                                                             
+                                                                 
+ conv3d_19 (Conv3D)          (None, 12, 14, 26, 30)    840       
+                                                                 
+ conv3d_20 (Conv3D)          (None, 12, 14, 26, 1)     31        
+                                                                 
+ up_sampling3d_3 (UpSampling  (None, 12, 14, 52, 1)    0         
+ 3D)                                                             
+                                                                 
+ conv3d_21 (Conv3D)          (None, 12, 14, 52, 30)    840       
+                                                                 
+ conv3d_22 (Conv3D)          (None, 12, 14, 52, 1)     31        
+                                                                 
+ up_sampling3d_4 (UpSampling  (None, 12, 14, 104, 1)   0         
+ 3D)                                                             
+                                                                 
+ conv3d_23 (Conv3D)          (None, 12, 14, 104, 30)   840       
+                                                                 
+ conv3d_24 (Conv3D)          (None, 12, 14, 104, 1)    31        
+                                                                 
+ up_sampling3d_5 (UpSampling  (None, 12, 14, 208, 1)   0         
+ 3D)                                                             
+                                                                 
+ conv3d_25 (Conv3D)          (None, 12, 14, 208, 30)   1650      
+                                                                 
+ conv3d_26 (Conv3D)          (None, 12, 14, 208, 1)    811       
+                                                                 
+=================================================================
+Total params: 7,687
+Trainable params: 7,687
+Non-trainable params: 0
+_________________________________________________________________

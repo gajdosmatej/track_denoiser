@@ -210,6 +210,12 @@ def findThreshold(modelAPI :ModelWrapper, optimisedFunc, datapath :str, experime
 	signals = data_loader.getBatch(experimental, False, 11)
 	noises = data_loader.getBatch(experimental, True, 11)
 	data_num = signals.shape[0]
+
+	if experimental:
+		for i in range(data_num):	#normalisation
+			M = numpy.max(noises[i])
+			if M != 0:	noises[i] = noises[i] / M
+	
 	signals_map = signals>0.0001
 
 	print(">> Estimating the real counts of signal and noise tiles...")
@@ -235,18 +241,18 @@ def findThreshold(modelAPI :ModelWrapper, optimisedFunc, datapath :str, experime
 		threshold = thresholds[i]
 		print(">>> Threshold", threshold)
 		binary_reconstructions = numpy.where(reconstructions > threshold, 1, 0)
-		rhos = numpy.zeros(shape=data_num)
-		sigmas = numpy.zeros(shape=data_num)
+		rhos = []
+		sigmas = []
 
 		#count the remaining signal and noise tiles in every event after classification with current threshold
 		for j in range(data_num):
 			binary_remaining_signal = numpy.sum(binary_reconstructions[j][signals_map[j]])
 			binary_remaining_noise = numpy.sum(binary_reconstructions[j]) - binary_remaining_signal
-			rhos[j] = binary_remaining_signal / num_sgn[j]
-			sigmas[j] = binary_remaining_noise / num_noise[j]
+			if num_sgn[j] != 0:	rhos.append( binary_remaining_signal / num_sgn[j] )
+			if num_noise[j] != 0:	sigmas.append( binary_remaining_noise / num_noise[j] )
 		
 		#get the average ratios of remaining signals and noises
-		mean_rho, mean_sigma = numpy.mean(rhos), numpy.mean(sigmas)
+		mean_rho, mean_sigma = numpy.mean( numpy.array(rhos) ), numpy.mean( numpy.array(sigmas) )
 		mean_rhos[i] = mean_rho
 		mean_sigmas[i] = mean_sigma
 		print(">>> Reconstructed signal ratio: " + str(mean_rho) + ", Remaining noise: " + str(mean_sigma) + ", Optimised function: " + str(optimisedFunc(mean_rho, mean_sigma)))

@@ -16,14 +16,13 @@ def normalise(arr :numpy.ndarray):
 class Generator:
 	DIMENSIONS = (12, 14, 208)
 	CURVATURE_SIGMA = 0.05	#sigma of normal distribution, which updateDirection samples R3 vector from
-	DIRECTION_NORMS = numpy.array([0.5,0.5,1.0])	#factors which multiply each coordinate of direction unit vector (main aim is to increase velocity in Z direction in order to compensate dim_Z >> dim_X, dim_Y)
-	SIGNAL_ENERGY = 2	#signal deposits this value in every point of lattice which it visits
+	DIRECTION_NORMS = numpy.array([0.33,0.33,1.])	#factors which multiply each coordinate of direction unit vector (main aim is to increase velocity in Z direction in order to compensate dim_Z >> dim_X, dim_Y)
 	SIGNAL_CHANGE_DIRECTION_PROBABILITY = 0.1	#the signal probability that updateDirection is called in a step
-	NOISE_TRACKS_NUM_RANGE = (20,50)	#the minimal and maximal number of noise tracks
+	NOISE_TRACKS_NUM_RANGE = (15,30)	#the minimal and maximal number of noise tracks
 	DATA_DIR_PATH = "./data"
-	NOISE_MEAN_ENERGY = 1.4
-	NOISE_SIGMA_ENERGY = 0.6
-	MAX_NOISE_STEPS = 7
+	NOISE_MEAN_ENERGY = 0.5
+	NOISE_SIGMA_ENERGY = 1.
+	MAX_NOISE_STEPS = 8
 
 	def __init__(self):
 		self.initialise()
@@ -67,34 +66,59 @@ class Generator:
 			direction = numpy.array([0.,0.,-self.DIRECTION_NORMS[2]])
 		return (position, direction)
 
-	def sampleInitSignalDirection(self):
-		'''Samples signal direction vector with bias in z axis.'''
-		return normalise( numpy.array( [numpy.random.random()-0.5, numpy.random.random()-0.5, 1.0] ))
+	def sampleInitDirection(self):
+		'''Samples direction vector uniformly from a unit sphere.'''
+		vect = numpy.random.normal(loc=0,scale=1,size=3)
+		vect /= numpy.linalg.norm(vect)
+		vect *= self.DIRECTION_NORMS
+		return vect
 
 	def addSignal(self):
 		'''Adds one signal track into the input 3D array space.'''
-		position = numpy.array(self.DIMENSIONS) * numpy.random.normal(loc=0.5, scale=0.1, size=3)	#the track begins in the middle of the space
-		direction = self.sampleInitSignalDirection()
-		num_steps = int(numpy.random.normal(loc=50, scale=1))
+		
+		history = []
+		last_coords = None
+		position = numpy.array(self.DIMENSIONS) * numpy.random.uniform(0.2, 0.8, size=3)
+		direction = self.sampleInitDirection()
+		num_steps = int(numpy.random.normal(loc=60, scale=2))
 
 		for _ in range(num_steps):
 			if self.isCoordOutOfBounds(position):	break
-			self.space[self.discretise(position)] = 1
-			if numpy.random.random() < self.SIGNAL_CHANGE_DIRECTION_PROBABILITY:	self.updateDirection(direction)
+			
+			coords = self.discretise(position)
+			if coords != last_coords:
+				history.append(coords)
+				last_coords = coords
+				self.space[coords] = 1
+			#if numpy.random.random() < self.SIGNAL_CHANGE_DIRECTION_PROBABILITY:	self.updateDirection(direction)
 			position += direction
+		return history
 
 	def addNoise(self):
 		'''Adds several noise tracks into the input 3D array space.'''
 		num_of_traces = numpy.random.randint( *self.NOISE_TRACKS_NUM_RANGE )
 		for _ in range(num_of_traces):
-			position = (numpy.array(self.DIMENSIONS) - 1) * numpy.random.random(size=3)
+			position = (numpy.array(self.DIMENSIONS) - 1) * numpy.random.uniform(0, 1, size=3)
 			steps = numpy.random.randint(1, self.MAX_NOISE_STEPS)
-			direction = numpy.random.uniform(-1,1) * self.DIRECTION_NORMS
+			direction = self.sampleInitDirection()
 			for _ in range(steps):
 				self.space[self.discretise(position)] += numpy.clip( numpy.random.normal(loc=self.NOISE_MEAN_ENERGY, scale=self.NOISE_SIGMA_ENERGY), 0, None)
 				position += direction
 				if self.isCoordOutOfBounds(position):	break
 				self.updateDirection(direction)
+
+
+	def energise(self, history :list):
+		#E_prev = numpy.random.uniform(0.5,1.)
+		#E = E_prev + numpy.random.normal(0,0.1)
+		E = numpy.random.uniform(1., 1.5)
+		for coord in history:
+			if numpy.random.random() < 0.1:	E = numpy.random.uniform(0., 1.5)	#discontinuity
+			self.space[coord] = E
+			E += numpy.random.uniform(-0.2, 0.2)
+			if E < 0:	E = numpy.random.uniform(0, 0.1)
+			#E_prev, E = E, E + (E-E_prev) + numpy.random.normal(0,0.1)
+			#if E < 0:	E = 0
 
 	#OBSOLETE
 	def genAndDumpData(self, iterations :int):
@@ -137,13 +161,12 @@ class Generator:
 			for i in range(file_size):
 				if i % 1000 == 0:	print("{:,}".format(file_i *file_size + i), "/", "{:,}".format(iterations))
 				self.initialise()
-				self.addSignal()
+				signal_history = self.addSignal()
 				data_signal.append( numpy.copy(self.space) )
 				
 				#add energy to signal tiles
-				coord = numpy.nonzero(self.space)
-				self.space[coord] *= numpy.clip( numpy.random.normal(self.SIGNAL_ENERGY, 0.7*self.SIGNAL_ENERGY, coord[0].shape), 0, None)
-				
+				self.energise(signal_history)
+			
 				self.addNoise()
 				data_noise.append(normalise(self.space))
 
