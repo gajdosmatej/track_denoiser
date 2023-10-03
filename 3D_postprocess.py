@@ -147,7 +147,7 @@ def plotMetrics(modelAPI :ModelWrapper, out_path :str, datapath :str):
 	xlabel_noise = r"$\sigma$ (Ratio of unfiltered noise tiles)"
 
 	num = 10
-	low = 11
+	low = 21
 	reconstructed_noise_metric, reconstructed_signal_metric = numpy.zeros(5000*num), numpy.zeros(5000*num)
 
 	for i in range(0, num):
