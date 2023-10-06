@@ -9,12 +9,12 @@ import copy
 from denoise_traces import DataLoader, Plotting, ModelWrapper
 
 
-def plotHistory(out_path :str, model_name :str):
+def plotHistory(modelpath :str, model_name :str):
 	'''
 	Plot the model's training history.
 	'''
 
-	f = open(out_path + "history.json", "r")
+	f = open(modelpath + "history.json", "r")
 	history = json.load(f)
 	f.close()
 	n = len(history["loss"])
@@ -25,11 +25,11 @@ def plotHistory(out_path :str, model_name :str):
 	matplotlib.pyplot.ylabel("binary cross entropy (log scale)")
 	matplotlib.pyplot.yscale("log")
 	matplotlib.pyplot.suptitle("Training of Model " + model_name)
-	matplotlib.pyplot.savefig(out_path + "history.pdf", bbox_inches='tight')
+	matplotlib.pyplot.savefig(modelpath + "history.pdf", bbox_inches='tight')
 	matplotlib.pyplot.close()
 
 
-def specialInputs(modelAPI :ModelWrapper, out_path :str):
+def specialInputs(modelAPI :ModelWrapper, modelpath :str):
 	'''
 	Plot the reconstruction of several special inputs.
 	'''
@@ -78,11 +78,11 @@ def specialInputs(modelAPI :ModelWrapper, out_path :str):
 		ax[2,1].set_ylabel("x")
 
 		fig.suptitle(titles[i])
-		matplotlib.pyplot.savefig(out_path + filenames[i], bbox_inches="tight")
+		matplotlib.pyplot.savefig(modelpath + filenames[i], bbox_inches="tight")
 		matplotlib.pyplot.close()
 
 
-def plotExamples(modelAPI :ModelWrapper, out_path :str, datapath :str):
+def plotExamples(modelAPI :ModelWrapper, modelpath :str, datapath :str):
 	'''
 	Plot few examples of track reconstruction.
 	'''
@@ -96,20 +96,20 @@ def plotExamples(modelAPI :ModelWrapper, out_path :str, datapath :str):
 		reconstr = modelAPI.evaluateSingleEvent(noisy / numpy.max(noisy))
 		classificated = modelAPI.classify(reconstr)
 		Plotting.plotEvent(noisy / numpy.max(noisy), reconstr, classificated, True, modelAPI.name)
-		matplotlib.pyplot.savefig(out_path + "example_reconstruction" + str(i) + ".pdf", bbox_inches="tight")
+		matplotlib.pyplot.savefig(modelpath + "example_reconstruction" + str(i) + ".pdf", bbox_inches="tight")
 		matplotlib.pyplot.close()
 
-		Plotting.animation3D(out_path + "example_reconstruction_3D_" + str(i) + ".gif", modelAPI, noisy, True)
+		Plotting.animation3D(modelpath + "example_reconstruction_3D_" + str(i) + ".gif", modelAPI, noisy, True)
 		matplotlib.pyplot.close()
 
 
-def plotModelArchitecture(modelAPI :ModelWrapper, out_path :str):
+def plotModelArchitecture(modelAPI :ModelWrapper, modelpath :str):
 	'''
 	Plot model architecture and write it in a textfile.
 	'''
 
-	keras.utils.plot_model(modelAPI.model, to_file= out_path + "architecture.png", show_shapes=True, show_layer_names=False, show_layer_activations=True)
-	with open(out_path + "architecture.txt", "w") as f:
+	keras.utils.plot_model(modelAPI.model, to_file= modelpath + "architecture.png", show_shapes=True, show_layer_names=False, show_layer_activations=True)
+	with open(modelpath + "architecture.txt", "w") as f:
 		modelAPI.model.summary(print_fn = lambda x: print(x, file=f))
 
 
@@ -136,7 +136,7 @@ def getBatchReconstruction(modelAPI :ModelWrapper, index :int, datapath :str, ex
 	return reconstructed_signal_tiles / all_signal_tiles, reconstructed_noise_tiles / all_noise_tiles
 
 
-def plotMetrics(modelAPI :ModelWrapper, out_path :str, datapath :str):
+def plotMetrics(modelAPI :ModelWrapper, modelpath :str, datapath :str):
 	'''
 	Plot histograms of reconstruction metrics.
 	'''
@@ -158,12 +158,12 @@ def plotMetrics(modelAPI :ModelWrapper, out_path :str, datapath :str):
 				reconstructed_signal_metric[j+5000*i] = batch_reconstructed_signal_metric[j]
 				reconstructed_noise_metric[j+5000*i] = batch_reconstructed_noise_metric[j]
 
-		f = open(out_path + "signal_metric.txt", "w")
+		f = open(modelpath + "signal_metric.txt", "w")
 		for val in reconstructed_signal_metric:
 			f.write(str(val) + "\n")
 		f.close()
 
-		f = open(out_path + "noise_metric.txt", "w")
+		f = open(modelpath + "noise_metric.txt", "w")
 		for val in reconstructed_noise_metric:
 			f.write(str(val) + "\n")
 		f.close()
@@ -173,14 +173,14 @@ def plotMetrics(modelAPI :ModelWrapper, out_path :str, datapath :str):
 		matplotlib.pyplot.xlabel(xlabel_rec)
 		matplotlib.pyplot.ylabel(r"$\#$")
 		matplotlib.pyplot.xlim(0, 1)
-		matplotlib.pyplot.savefig(out_path + "hist_signal_metric.pdf")
+		matplotlib.pyplot.savefig(modelpath + "hist_signal_metric.pdf")
 		matplotlib.pyplot.close()
 		matplotlib.pyplot.hist(reconstructed_noise_metric, bins=70, range=(0,1), log=False)
 		matplotlib.pyplot.title(title_noise)
 		matplotlib.pyplot.xlabel(xlabel_noise)
 		matplotlib.pyplot.ylabel(r"$\#$")
 		matplotlib.pyplot.xlim(0, 1)
-		matplotlib.pyplot.savefig(out_path + "hist_noise_metric.pdf")
+		matplotlib.pyplot.savefig(modelpath + "hist_noise_metric.pdf")
 		matplotlib.pyplot.close()
 
 	fixed_cmap = copy.copy(matplotlib.colormaps["gray"])
@@ -190,7 +190,7 @@ def plotMetrics(modelAPI :ModelWrapper, out_path :str, datapath :str):
 	matplotlib.pyplot.xlabel(r"$\rho$ (Ratio of reconstructed signal)")
 	matplotlib.pyplot.ylabel(r"$\sigma$ (Ratio of unfiltered noise)")
 	matplotlib.pyplot.suptitle("2D Log Norm Histogram Of Reconstruction and Filtering Metrics\n Model " + model_name)
-	matplotlib.pyplot.savefig(out_path + "hist_2d.pdf", bbox_inches='tight')
+	matplotlib.pyplot.savefig(modelpath + "hist_2d.pdf", bbox_inches='tight')
 	matplotlib.pyplot.close()
 	
 	'''
@@ -268,7 +268,7 @@ def findThreshold(modelAPI :ModelWrapper, optimisedFunc, datapath :str, experime
 	return best_threshold, history
 
 
-def plotThresholdPlots(thresholds, signal_metrics, noise_metrics, optimised_func_values, out_path):
+def plotThresholdPlots(thresholds, signal_metrics, noise_metrics, optimised_func_values, modelpath):
 	#ROC
 	matplotlib.pyplot.plot(noise_metrics, signal_metrics, "blue")
 	matplotlib.pyplot.title("Threshold Classifier ROC for Model " + model_name)
@@ -276,7 +276,7 @@ def plotThresholdPlots(thresholds, signal_metrics, noise_metrics, optimised_func
 	matplotlib.pyplot.ylabel(r"$\overline{\rho(D)}$ (Ratio of reconstructed track tiles)")
 	matplotlib.pyplot.xlim(-0.05,1)
 	matplotlib.pyplot.ylim(0,1.05)
-	matplotlib.pyplot.savefig(out_path + "ROC.pdf", bbox_inches='tight')
+	matplotlib.pyplot.savefig(modelpath + "ROC.pdf", bbox_inches='tight')
 	matplotlib.pyplot.close()
 	
 	#Evolution of metrics based on threshold
@@ -289,74 +289,78 @@ def plotThresholdPlots(thresholds, signal_metrics, noise_metrics, optimised_func
 	matplotlib.pyplot.xlim(0,1)
 	matplotlib.pyplot.ylim(0,1)
 	matplotlib.pyplot.title("Metrics of Reconstruction Quality Based On Threshold by Model " + model_name)
-	matplotlib.pyplot.savefig(out_path + "thr_evol.pdf", bbox_inches='tight')
+	matplotlib.pyplot.savefig(modelpath + "thr_evol.pdf", bbox_inches='tight')
 	matplotlib.pyplot.close()
 
 
-def postprocessModel(out_path, model_name, datapath):
+def postprocessModel(modelpath, model_name, datapath):
 	print("> Loading model...")
-	modelAPI = ModelWrapper( keras.models.load_model(out_path + "model"), model_name )
+	modelAPI = ModelWrapper( keras.models.load_model(modelpath + "model"), model_name )
 
 	print("> Plotting model architecture...")
-	plotModelArchitecture(modelAPI, out_path)
+	plotModelArchitecture(modelAPI, modelpath)
 
 	threshold = None
 	try:
-		f = open(out_path + "threshold.txt", "r")
+		f = open(modelpath + "threshold.txt", "r")
 		threshold = float( f.readline() )
 		print("> Found saved threshold", threshold)
 	except:
 		print("> Finding optimal classification threshold...")
 		def optimisedFunc(signal_metric, noise_metric):	return signal_metric - noise_metric
 		threshold, history = findThreshold(modelAPI, optimisedFunc, datapath, False)
-		plotThresholdPlots(history["thresholds"], history["signal_metrics"], history["noise_metrics"], history["optimised_func_values"], out_path)
+		plotThresholdPlots(history["thresholds"], history["signal_metrics"], history["noise_metrics"], history["optimised_func_values"], modelpath)
 
 		print("> Best threshold is", threshold)
-		f = open(out_path + "threshold.txt", "w")
+		f = open(modelpath + "threshold.txt", "w")
 		f.write( str(threshold) )
 		f.close()
 
 	modelAPI.threshold = threshold
 
 	print("> Plotting reconstruction quality histograms...")
-	plotMetrics(modelAPI, out_path, datapath)
+	plotMetrics(modelAPI, modelpath, datapath)
 
 	print("> Plotting examples of reconstruction...")
-	plotExamples(modelAPI, out_path, datapath)
+	plotExamples(modelAPI, modelpath, datapath)
 
 
 	print("> Plotting model training history...")
-	plotHistory(out_path, modelAPI.name)
+	plotHistory(modelpath, modelAPI.name)
 
 	print("> Evaluating special inputs...")
-	specialInputs(modelAPI, out_path)
+	specialInputs(modelAPI, modelpath)
 
 
 datapath = input("Path to root data directory: ")
 if datapath[-1] != "/":	datapath += "/"
 
+modelpath = input("Path to model/ directory: ")
+if modelpath[-1] != "/":	modelpath += "/"
+modelpath += "3D/"
+
 name = input("Model names (or 'ALL' models or all 'NEW' models): ")
 if name == "ALL":
 	counter = 1
-	num_all = len(os.listdir("./models/3D/"))
-	for model_name in os.listdir("./models/3D/"):
+	num_all = len(os.listdir(modelpath))
+	for model_name in os.listdir(modelpath):
 		print("-------------------------------------")
 		print("> PROCESSING MODEL " + model_name + " [" + str(counter) + "/" + str(num_all) + "]")
 		print("-------------------------------------")
-		postprocessModel("./models/3D/" + model_name + "/", model_name, datapath)
+		postprocessModel(modelpath + model_name + "/", model_name, datapath)
 		counter += 1
 elif name == "NEW":
-	for model_name in os.listdir("./models/3D/"):
+	for model_name in os.listdir(modelpath):
 		print("-------------------------------------")
-		if "architecture.txt" in os.listdir("./models/3D/" + model_name):
+		if "architecture.txt" in os.listdir(modelpath + model_name):
 			print("> SKIPPING MODEL " + model_name)
 		else:
 			print("> PROCESSING MODEL " + model_name)
 			print("-------------------------------------")
-			postprocessModel("./models/3D/" + model_name + "/", model_name, datapath)
+			postprocessModel(modelpath + model_name + "/", model_name, datapath)
 else:
 	for model_name in name.split():
 		print("-------------------------------------")
 		print("> PROCESSING MODEL " + model_name)
 		print("-------------------------------------")
-		postprocessModel("./models/3D/" + model_name + "/", model_name, datapath)
+		postprocessModel(modelpath + model_name + "/", model_name, datapath)
