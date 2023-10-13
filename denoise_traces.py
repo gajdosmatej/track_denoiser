@@ -217,6 +217,13 @@ class DataLoader:
 					).batch(batch_size).prefetch(20)
 
 
+	def getValidationData(self):
+		noisy, clean = self.getBatch(True, True, track_type="goodtracks"), self.getBatch(True, False, track_type="goodtracks")
+		noisy = numpy.reshape(noisy, (*noisy.shape, 1))
+		clean = numpy.reshape(clean, (*clean.shape, 1))
+		return (noisy, clean)
+
+
 	def getBatch(self, experimental :bool = True, noisy :bool = True, file_id :int = 0, track_type :str = "alltracks"):
 		'''
 		Get one data batch as numpy array.
