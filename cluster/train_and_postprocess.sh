@@ -1,7 +1,7 @@
 #!/bin/bash
 #PBS -N batch_job
 #PBS -l select=1:mem=32gb:scratch_local=20gb:ngpus=1:gpu_cap=cuda60
-#PBS -l walltime=12:00:00
+#PBS -l walltime=1:00:00
 #PBS -q gpu
 
 DATADIR=/storage/plzen1/home/gajdoma6
@@ -21,11 +21,13 @@ mv ./histories $DATADIR/
 
 rm -fr $DATADIR/cluster/*
 
-
 cd $DATADIR/raw_models/
 
 for model in *;
 do
+	if [ -d ../models/3D/"$model" ]; then
+		rm -r ../models/3D/"$model"
+	fi
 	mkdir ../models/3D/"$model"
 	mv -vn "$model" ../models/3D/"$model"/model
 	mv -vn ../histories/"$model".json ../models/3D/"$model"/history.json
