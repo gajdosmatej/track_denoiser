@@ -115,7 +115,7 @@ class Generator:
 		for coord in history:
 			if numpy.random.random() < 0.1:	E = numpy.random.uniform(0., 1.5)	#discontinuity
 			self.space[coord] = E
-			E += numpy.random.uniform(-0.2, 0.2)
+			E += numpy.random.uniform(-0.4, 0.4)
 			if E < 0:	E = numpy.random.uniform(0, 0.1)
 			#E_prev, E = E, E + (E-E_prev) + numpy.random.normal(0,0.1)
 			#if E < 0:	E = 0
@@ -152,7 +152,7 @@ class Generator:
 		'''Generates space 3D array with one signal and several noises in each iteration and saves the clean and noised data.'''
 		file_size = 5000
 
-		increment = len(os.listdir(self.DATA_DIR_PATH + "simulated/noisy/")) // 2	#some datafiles might be already in the directory, this ensures they will not be overwritten
+		increment = len(os.listdir(self.DATA_DIR_PATH + "simulated/noisy/"))	#some datafiles might be already in the directory, this ensures they will not be overwritten
 
 		file_num = iterations // file_size
 		for file_i in range(file_num):
