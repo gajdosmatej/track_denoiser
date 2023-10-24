@@ -33,6 +33,22 @@ class Metric:
 		return num_noise_tiles / num_all_noise
 
 
+class RandomNoise(keras.layers.Layer):
+	'''
+	Custom Keras Layer applying random gaussian noise to the input.	
+	'''
+	
+	def __init__(self, std=1):
+		super().__init__()
+		self.std = std
+
+	def call(self, x):
+		return keras.layers.add([x, tensorflow.random.normal(shape=tensorflow.shape(x), mean=0, stddev=self.std)])
+
+	def build(self, input_shape):
+		pass
+
+
 class SEAttention(keras.layers.Layer):
 	'''
 	Custom Keras Layer applying channelwise attention to a 3D tensor. 
