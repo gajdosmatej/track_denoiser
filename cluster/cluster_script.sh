@@ -1,7 +1,7 @@
 #!/bin/bash
 #PBS -N batch_job
-#PBS -l select=1:mem=16gb:scratch_local=20gb:ngpus=1:gpu_cap=cuda60
-#PBS -l walltime=4:00:00
+#PBS -l select=1:mem=32gb:scratch_local=20gb:ngpus=1:gpu_cap=cuda60
+#PBS -l walltime=24:00:00
 #PBS -q gpu
 
 DATADIR=/storage/plzen1/home/gajdoma6

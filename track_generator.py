@@ -254,37 +254,38 @@ class Support:
 		matplotlib.pyplot.show()
 '''
 
-num_gen, is_3D, path = None, None, None
-bool_n, bool_t, bool_p = False, False, False
+if __name__ == "__main__":
+	num_gen, is_3D, path = None, None, None
+	bool_n, bool_t, bool_p = False, False, False
 
-for arg in sys.argv[1:]:
-	if bool_n:
-		num_gen = int(float(arg))
-		bool_n = False
-	elif bool_t:
-		is_3D = True if arg in ["3d", "3D"] else False
-		bool_t = False
-	elif bool_p:
-		path = arg
-		bool_p = False
-	elif arg == "-h":
-		print("-h ... list flags")
-		print("-n <integer> ... number of generated events (at least 20000)")
-		print("-t <\"2d\" or \"3d\"> ... whether the output files contain 2D projections or original 3D event (default 2D)")
-		print("-p <path> ... path to data directory")	
-	elif arg == "-n":	bool_n = True
-	elif arg == "-t":	bool_t = True
-	elif arg == "-p":	bool_p = True
+	for arg in sys.argv[1:]:
+		if bool_n:
+			num_gen = int(float(arg))
+			bool_n = False
+		elif bool_t:
+			is_3D = True if arg in ["3d", "3D"] else False
+			bool_t = False
+		elif bool_p:
+			path = arg
+			bool_p = False
+		elif arg == "-h":
+			print("-h ... list flags")
+			print("-n <integer> ... number of generated events (at least 20000)")
+			print("-t <\"2d\" or \"3d\"> ... whether the output files contain 2D projections or original 3D event (default 2D)")
+			print("-p <path> ... path to data directory")	
+		elif arg == "-n":	bool_n = True
+		elif arg == "-t":	bool_t = True
+		elif arg == "-p":	bool_p = True
 
-if num_gen == None or is_3D == None or path == None:
-	print("Specify all the parameters")
-else:
-	generator = Generator()
-	generator.DATA_DIR_PATH = path + ("" if path[-1] == "/" else "/")
-	if is_3D:
-		generator.genAndDumpData3D(num_gen)
+	if num_gen == None or is_3D == None or path == None:
+		print("Specify all the parameters")
 	else:
-		generator.genAndDumpData(num_gen)
+		generator = Generator()
+		generator.DATA_DIR_PATH = path + ("" if path[-1] == "/" else "/")
+		if is_3D:
+			generator.genAndDumpData3D(num_gen)
+		else:
+			generator.genAndDumpData(num_gen)
 
 #generator = Generator()
 #generator.genAndDumpData(int(1e6))

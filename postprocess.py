@@ -332,35 +332,36 @@ def postprocessModel(modelpath, model_name, datapath):
 	specialInputs(modelAPI, modelpath)
 
 
-datapath = input("Path to root data directory: ")
-if datapath[-1] != "/":	datapath += "/"
+if __name__ == "__main__":
+	datapath = input("Path to root data directory: ")
+	if datapath[-1] != "/":	datapath += "/"
 
-modelpath = input("Path to model/ directory: ")
-if modelpath[-1] != "/":	modelpath += "/"
-modelpath += "3D/"
+	modelpath = input("Path to model/ directory: ")
+	if modelpath[-1] != "/":	modelpath += "/"
+	modelpath += "3D/"
 
-name = input("Model names (or 'ALL' models or all 'NEW' models): ")
-if name == "ALL":
-	counter = 1
-	num_all = len(os.listdir(modelpath))
-	for model_name in os.listdir(modelpath):
-		print("-------------------------------------")
-		print("> PROCESSING MODEL " + model_name + " [" + str(counter) + "/" + str(num_all) + "]")
-		print("-------------------------------------")
-		postprocessModel(modelpath + model_name + "/", model_name, datapath)
-		counter += 1
-elif name == "NEW":
-	for model_name in os.listdir(modelpath):
-		print("-------------------------------------")
-		if "architecture.txt" in os.listdir(modelpath + model_name):
-			print("> SKIPPING MODEL " + model_name)
-		else:
+	name = input("Model names (or 'ALL' models or all 'NEW' models): ")
+	if name == "ALL":
+		counter = 1
+		num_all = len(os.listdir(modelpath))
+		for model_name in os.listdir(modelpath):
+			print("-------------------------------------")
+			print("> PROCESSING MODEL " + model_name + " [" + str(counter) + "/" + str(num_all) + "]")
+			print("-------------------------------------")
+			postprocessModel(modelpath + model_name + "/", model_name, datapath)
+			counter += 1
+	elif name == "NEW":
+		for model_name in os.listdir(modelpath):
+			print("-------------------------------------")
+			if "architecture.txt" in os.listdir(modelpath + model_name):
+				print("> SKIPPING MODEL " + model_name)
+			else:
+				print("> PROCESSING MODEL " + model_name)
+				print("-------------------------------------")
+				postprocessModel(modelpath + model_name + "/", model_name, datapath)
+	else:
+		for model_name in name.split():
+			print("-------------------------------------")
 			print("> PROCESSING MODEL " + model_name)
 			print("-------------------------------------")
 			postprocessModel(modelpath + model_name + "/", model_name, datapath)
-else:
-	for model_name in name.split():
-		print("-------------------------------------")
-		print("> PROCESSING MODEL " + model_name)
-		print("-------------------------------------")
-		postprocessModel(modelpath + model_name + "/", model_name, datapath)

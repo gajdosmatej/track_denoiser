@@ -1,66 +1,482 @@
 from tensorflow import keras
+from denoise_traces import SEAttention, SpatialAttention
 
+
+def base():
+	inputs = keras.layers.Input((12,14,208,1))
+	x = keras.layers.Conv3D(padding="same", strides=(1,1,1), kernel_size=(3,3,4), filters=5, activation="relu")(inputs)
+	x = keras.layers.MaxPooling3D((1,1,2))(x)
+	x = keras.layers.Conv3D(padding="same", strides=(1,1,1), kernel_size=(3,3,4), filters=5, activation="relu")(x)
+	x = keras.layers.MaxPooling3D((1,1,2))(x)
+	x = keras.layers.Conv3D(padding="same", strides=(1,1,1), kernel_size=(3,3,4), filters=20, activation="relu")(x)
+	x = keras.layers.MaxPooling3D((1,1,2))(x)
+	x = keras.layers.Conv3D(padding="same", strides=(1,1,1), kernel_size=(3,3,4), filters=20, activation="relu")(x)
+	x = keras.layers.UpSampling3D((1,1,2))(x)
+	x = keras.layers.Conv3D(padding="same", strides=(1,1,1), kernel_size=(3,3,4), filters=5, activation="relu")(x)
+	x = keras.layers.UpSampling3D((1,1,2))(x)
+	x = keras.layers.Conv3D(padding="same", strides=(1,1,1), kernel_size=(3,3,4), filters=5, activation="relu")(x)
+	x = keras.layers.UpSampling3D((1,1,2))(x)
+	x = keras.layers.Conv3D(padding="same", strides=(1,1,1), kernel_size=(3,3,4), filters=5, activation="relu")(x)
+	x = keras.layers.Add()([x, inputs])
+	outputs = keras.layers.Conv3D(padding="same", strides=(1,1,1), kernel_size=(3,3,4), filters=1, activation="sigmoid")(x)
+	return keras.Model(inputs = inputs, outputs = outputs)
+
+
+def baseAndChannel():
+	inputs = keras.layers.Input((12,14,208,1))
+	x = SEAttention()(inputs)
+	x = keras.layers.Conv3D(padding="same", strides=(1,1,1), kernel_size=(3,3,4), filters=5, activation="relu")(x)
+	x = keras.layers.MaxPooling3D((1,1,2))(x)
+	x = SEAttention()(x)
+	x = keras.layers.Conv3D(padding="same", strides=(1,1,1), kernel_size=(3,3,4), filters=5, activation="relu")(x)
+	x = keras.layers.MaxPooling3D((1,1,2))(x)
+	x = SEAttention()(x)
+	x = keras.layers.Conv3D(padding="same", strides=(1,1,1), kernel_size=(3,3,4), filters=20, activation="relu")(x)
+	x = keras.layers.MaxPooling3D((1,1,2))(x)
+	x = SEAttention()(x)
+	x = keras.layers.Conv3D(padding="same", strides=(1,1,1), kernel_size=(3,3,4), filters=20, activation="relu")(x)
+	x = keras.layers.UpSampling3D((1,1,2))(x)
+	x = SEAttention()(x)
+	x = keras.layers.Conv3D(padding="same", strides=(1,1,1), kernel_size=(3,3,4), filters=5, activation="relu")(x)
+	x = keras.layers.UpSampling3D((1,1,2))(x)
+	x = SEAttention()(x)
+	x = keras.layers.Conv3D(padding="same", strides=(1,1,1), kernel_size=(3,3,4), filters=5, activation="relu")(x)
+	x = keras.layers.UpSampling3D((1,1,2))(x)
+	x = SEAttention()(x)
+	x = keras.layers.Conv3D(padding="same", strides=(1,1,1), kernel_size=(3,3,4), filters=5, activation="relu")(x)
+	x = keras.layers.Add()([x, inputs])
+	outputs = keras.layers.Conv3D(padding="same", strides=(1,1,1), kernel_size=(3,3,4), filters=1, activation="sigmoid")(x)
+	return keras.Model(inputs = inputs, outputs = outputs)
+
+
+def baseAndSpatial():
+	inputs = keras.layers.Input((12,14,208,1))
+	x = SpatialAttention()(inputs)
+	x = keras.layers.Conv3D(padding="same", strides=(1,1,1), kernel_size=(3,3,4), filters=5, activation="relu")(x)
+	x = keras.layers.MaxPooling3D((1,1,2))(x)
+	x = SpatialAttention()(x)
+	x = keras.layers.Conv3D(padding="same", strides=(1,1,1), kernel_size=(3,3,4), filters=5, activation="relu")(x)
+	x = keras.layers.MaxPooling3D((1,1,2))(x)
+	x = SpatialAttention()(x)
+	x = keras.layers.Conv3D(padding="same", strides=(1,1,1), kernel_size=(3,3,4), filters=20, activation="relu")(x)
+	x = keras.layers.MaxPooling3D((1,1,2))(x)
+	x = SpatialAttention()(x)
+	x = keras.layers.Conv3D(padding="same", strides=(1,1,1), kernel_size=(3,3,4), filters=20, activation="relu")(x)
+	x = keras.layers.UpSampling3D((1,1,2))(x)
+	x = SpatialAttention()(x)
+	x = keras.layers.Conv3D(padding="same", strides=(1,1,1), kernel_size=(3,3,4), filters=5, activation="relu")(x)
+	x = keras.layers.UpSampling3D((1,1,2))(x)
+	x = SpatialAttention()(x)
+	x = keras.layers.Conv3D(padding="same", strides=(1,1,1), kernel_size=(3,3,4), filters=5, activation="relu")(x)
+	x = keras.layers.UpSampling3D((1,1,2))(x)
+	x = SpatialAttention()(x)
+	x = keras.layers.Conv3D(padding="same", strides=(1,1,1), kernel_size=(3,3,4), filters=5, activation="relu")(x)
+	x = keras.layers.Add()([x, inputs])
+	outputs = keras.layers.Conv3D(padding="same", strides=(1,1,1), kernel_size=(3,3,4), filters=1, activation="sigmoid")(x)
+	return keras.Model(inputs = inputs, outputs = outputs)
+
+
+def baseAndChannelAndSpatial():
+	inputs = keras.layers.Input((12,14,208,1))
+	x = SEAttention()(inputs)
+	x = SpatialAttention()(x)
+	x = keras.layers.Conv3D(padding="same", strides=(1,1,1), kernel_size=(3,3,4), filters=5, activation="relu")(x)
+	x = keras.layers.MaxPooling3D((1,1,2))(x)
+	x = SEAttention()(x)
+	x = SpatialAttention()(x)
+	x = keras.layers.Conv3D(padding="same", strides=(1,1,1), kernel_size=(3,3,4), filters=5, activation="relu")(x)
+	x = keras.layers.MaxPooling3D((1,1,2))(x)
+	x = SEAttention()(x)
+	x = SpatialAttention()(x)
+	x = keras.layers.Conv3D(padding="same", strides=(1,1,1), kernel_size=(3,3,4), filters=20, activation="relu")(x)
+	x = keras.layers.MaxPooling3D((1,1,2))(x)
+	x = SEAttention()(x)
+	x = SpatialAttention()(x)
+	x = keras.layers.Conv3D(padding="same", strides=(1,1,1), kernel_size=(3,3,4), filters=20, activation="relu")(x)
+	x = keras.layers.UpSampling3D((1,1,2))(x)
+	x = SEAttention()(x)
+	x = SpatialAttention()(x)
+	x = keras.layers.Conv3D(padding="same", strides=(1,1,1), kernel_size=(3,3,4), filters=5, activation="relu")(x)
+	x = keras.layers.UpSampling3D((1,1,2))(x)
+	x = SEAttention()(x)
+	x = SpatialAttention()(x)
+	x = keras.layers.Conv3D(padding="same", strides=(1,1,1), kernel_size=(3,3,4), filters=5, activation="relu")(x)
+	x = keras.layers.UpSampling3D((1,1,2))(x)
+	x = SEAttention()(x)
+	x = SpatialAttention()(x)
+	x = keras.layers.Conv3D(padding="same", strides=(1,1,1), kernel_size=(3,3,4), filters=5, activation="relu")(x)
+	x = keras.layers.Add()([x, inputs])
+	outputs = keras.layers.Conv3D(padding="same", strides=(1,1,1), kernel_size=(3,3,4), filters=1, activation="sigmoid")(x)
+	return keras.Model(inputs = inputs, outputs = outputs)
+
+
+def mainlyLatent():
+	inputs = keras.layers.Input((12,14,208,1))
+	x = keras.layers.Conv3D(padding="same", strides=(1,1,2), kernel_size=(3,3,3), filters=5, activation="relu")(inputs)
+	x = keras.layers.Conv3D(padding="same", strides=(1,1,2), kernel_size=(3,3,3), filters=5, activation="relu")(x)
+	x = keras.layers.Conv3D(padding="same", strides=(1,1,2), kernel_size=(3,3,3), filters=5, activation="relu")(x)
+	c = keras.layers.Conv3D(padding="same", strides=(1,1,1), kernel_size=(3,3,3), filters=20, activation="relu")(x)
+	x = keras.layers.Conv3D(padding="same", strides=(1,1,1), kernel_size=(3,3,3), filters=20, activation="relu")(c)
+	x = keras.layers.Add()([x, c])
+	x = keras.layers.UpSampling3D((1,1,2))(x)
+	x = keras.layers.Conv3D(padding="same", strides=(1,1,1), kernel_size=(3,3,3), filters=5, activation="relu")(x)
+	x = keras.layers.UpSampling3D((1,1,2))(x)
+	x = keras.layers.Conv3D(padding="same", strides=(1,1,1), kernel_size=(3,3,3), filters=5, activation="relu")(x)
+	x = keras.layers.UpSampling3D((1,1,2))(x)
+	x = keras.layers.Conv3D(padding="same", strides=(1,1,1), kernel_size=(3,3,3), filters=5, activation="relu")(x)
+	x = keras.layers.Add()([x, inputs])
+	outputs = keras.layers.Conv3D(padding="same", strides=(1,1,1), kernel_size=(3,3,3), filters=1, activation="sigmoid")(x)
+	return keras.Model(inputs = inputs, outputs = outputs)
+
+def baseProduct():
+	inputs = keras.layers.Input((12,14,208,1))
+	x = keras.layers.Conv3D(padding="same", strides=(1,1,1), kernel_size=(3,3,4), filters=5, activation="relu")(inputs)
+	x = keras.layers.MaxPooling3D((1,1,2))(x)
+	x = keras.layers.Conv3D(padding="same", strides=(1,1,1), kernel_size=(3,3,4), filters=5, activation="relu")(x)
+	x = keras.layers.MaxPooling3D((1,1,2))(x)
+	a = keras.layers.Conv3D(padding="same", strides=(1,1,1), kernel_size=(3,3,4), filters=10, activation="relu")(x)
+	b = keras.layers.Conv3D(padding="same", strides=(1,1,1), kernel_size=(3,3,4), filters=10, activation="relu")(x)
+	x = keras.layers.Multiply()([a, b])
+	x = keras.layers.MaxPooling3D((1,1,2))(x)
+	x = keras.layers.Conv3D(padding="same", strides=(1,1,1), kernel_size=(3,3,4), filters=20, activation="relu")(x)
+	x = keras.layers.UpSampling3D((1,1,2))(x)
+	x = keras.layers.Conv3D(padding="same", strides=(1,1,1), kernel_size=(3,3,4), filters=5, activation="relu")(x)
+	x = keras.layers.UpSampling3D((1,1,2))(x)
+	x = keras.layers.Conv3D(padding="same", strides=(1,1,1), kernel_size=(3,3,4), filters=5, activation="relu")(x)
+	x = keras.layers.UpSampling3D((1,1,2))(x)
+	x = keras.layers.Conv3D(padding="same", strides=(1,1,1), kernel_size=(3,3,4), filters=5, activation="relu")(x)
+	x = keras.layers.Add()([x, inputs])
+	outputs = keras.layers.Conv3D(padding="same", strides=(1,1,1), kernel_size=(3,3,4), filters=1, activation="sigmoid")(x)
+	return keras.Model(inputs = inputs, outputs = outputs)
+
+def n_through(n):
+	inputs = keras.layers.Input((12,14,208,1))
+	x = keras.layers.Conv3D(padding="same", strides=(1,1,1), kernel_size=(3,3,4), filters=5, activation="relu")(inputs)
+	x = keras.layers.MaxPooling3D((1,1,2))(x)
+	x = keras.layers.Conv3D(padding="same", strides=(1,1,1), kernel_size=(3,3,4), filters=5, activation="relu")(x)
+	x = keras.layers.MaxPooling3D((1,1,2))(x)
+	x = keras.layers.Conv3D(padding="same", strides=(1,1,1), kernel_size=(3,3,4), filters=10, activation="relu")(x)
+	x = keras.layers.MaxPooling3D((1,1,2))(x)
+	x = keras.layers.Conv3D(padding="same", strides=(1,1,1), kernel_size=(3,3,4), filters=10, activation="relu")(x)
+	x = keras.layers.UpSampling3D((1,1,2))(x)
+	x = keras.layers.Conv3D(padding="same", strides=(1,1,1), kernel_size=(3,3,4), filters=5, activation="relu")(x)
+	x = keras.layers.UpSampling3D((1,1,2))(x)
+	x = keras.layers.Conv3D(padding="same", strides=(1,1,1), kernel_size=(3,3,4), filters=5, activation="relu")(x)
+	x = keras.layers.UpSampling3D((1,1,2))(x)
+	x = keras.layers.Conv3D(padding="same", strides=(1,1,1), kernel_size=(3,3,4), filters=5, activation="relu")(x)
+	x = keras.layers.Add()([x, inputs])
+	outputs = keras.layers.Conv3D(padding="same", strides=(1,1,1), kernel_size=(3,3,4), filters=1, activation="sigmoid")(x)
+	
+	submodel = keras.Model(inputs=inputs, outputs=outputs)
+
+	outputs = submodel(inputs)
+	for _ in range(1, n):
+		outputs = submodel(outputs)
+	return keras.Model(inputs = inputs, outputs = outputs)
+
+def baseL2():
+	inputs = keras.layers.Input((12,14,208,1))
+	x = keras.layers.Conv3D(kernel_regularizer="l2", padding="same", strides=(1,1,1), kernel_size=(3,3,4), filters=5, activation="relu")(inputs)
+	x = keras.layers.MaxPooling3D((1,1,2))(x)
+	x = keras.layers.Conv3D(kernel_regularizer="l2", padding="same", strides=(1,1,1), kernel_size=(3,3,4), filters=5, activation="relu")(x)
+	x = keras.layers.MaxPooling3D((1,1,2))(x)
+	x = keras.layers.Conv3D(kernel_regularizer="l2", padding="same", strides=(1,1,1), kernel_size=(3,3,4), filters=20, activation="relu")(x)
+	x = keras.layers.MaxPooling3D((1,1,2))(x)
+	x = keras.layers.Conv3D(kernel_regularizer="l2", padding="same", strides=(1,1,1), kernel_size=(3,3,4), filters=20, activation="relu")(x)
+	x = keras.layers.UpSampling3D((1,1,2))(x)
+	x = keras.layers.Conv3D(kernel_regularizer="l2", padding="same", strides=(1,1,1), kernel_size=(3,3,4), filters=5, activation="relu")(x)
+	x = keras.layers.UpSampling3D((1,1,2))(x)
+	x = keras.layers.Conv3D(kernel_regularizer="l2", padding="same", strides=(1,1,1), kernel_size=(3,3,4), filters=5, activation="relu")(x)
+	x = keras.layers.UpSampling3D((1,1,2))(x)
+	x = keras.layers.Conv3D(kernel_regularizer="l2", padding="same", strides=(1,1,1), kernel_size=(3,3,4), filters=5, activation="relu")(x)
+	x = keras.layers.Add()([x, inputs])
+	outputs = keras.layers.Conv3D(kernel_regularizer="l2", padding="same", strides=(1,1,1), kernel_size=(3,3,4), filters=1, activation="sigmoid")(x)
+	return keras.Model(inputs = inputs, outputs = outputs)
+
+def baseDropout():
+	inputs = keras.layers.Input((12,14,208,1))
+	x = keras.layers.Dropout(0.3)(inputs)
+	x = keras.layers.Conv3D(padding="same", strides=(1,1,1), kernel_size=(3,3,4), filters=5, activation="relu")(x)
+	x = keras.layers.MaxPooling3D((1,1,2))(x)
+	x = keras.layers.Dropout(0.25)(x)
+	x = keras.layers.Conv3D(padding="same", strides=(1,1,1), kernel_size=(3,3,4), filters=5, activation="relu")(x)
+	x = keras.layers.MaxPooling3D((1,1,2))(x)
+	x = keras.layers.Conv3D(padding="same", strides=(1,1,1), kernel_size=(3,3,4), filters=20, activation="relu")(x)
+	x = keras.layers.MaxPooling3D((1,1,2))(x)
+	x = keras.layers.Dropout(0.2)(x)
+	x = keras.layers.Conv3D(padding="same", strides=(1,1,1), kernel_size=(3,3,4), filters=20, activation="relu")(x)
+	x = keras.layers.UpSampling3D((1,1,2))(x)
+	x = keras.layers.Conv3D(padding="same", strides=(1,1,1), kernel_size=(3,3,4), filters=5, activation="relu")(x)
+	x = keras.layers.UpSampling3D((1,1,2))(x)
+	x = keras.layers.Conv3D(padding="same", strides=(1,1,1), kernel_size=(3,3,4), filters=5, activation="relu")(x)
+	x = keras.layers.UpSampling3D((1,1,2))(x)
+	x = keras.layers.Conv3D(padding="same", strides=(1,1,1), kernel_size=(3,3,4), filters=5, activation="relu")(x)
+	x = keras.layers.Add()([x, inputs])
+	outputs = keras.layers.Conv3D(padding="same", strides=(1,1,1), kernel_size=(3,3,4), filters=1, activation="sigmoid")(x)
+	return keras.Model(inputs = inputs, outputs = outputs)
+
+def baseSpatialDropout():
+	inputs = keras.layers.Input((12,14,208,1))
+	x = keras.layers.Conv3D(padding="same", strides=(1,1,1), kernel_size=(3,3,4), filters=5, activation="relu")(inputs)
+	x = keras.layers.MaxPooling3D((1,1,2))(x)
+	x = keras.layers.Dropout(0.25)(x)
+	x = keras.layers.Conv3D(padding="same", strides=(1,1,1), kernel_size=(3,3,4), filters=5, activation="relu")(x)
+	x = keras.layers.MaxPooling3D((1,1,2))(x)
+	x = keras.layers.Conv3D(padding="same", strides=(1,1,1), kernel_size=(3,3,4), filters=20, activation="relu")(x)
+	x = keras.layers.MaxPooling3D((1,1,2))(x)
+	x = keras.layers.SpatialDropout3D(0.3)(x)
+	x = keras.layers.Conv3D(padding="same", strides=(1,1,1), kernel_size=(3,3,4), filters=20, activation="relu")(x)
+	x = keras.layers.UpSampling3D((1,1,2))(x)
+	x = keras.layers.SpatialDropout3D(0.3)(x)
+	x = keras.layers.Conv3D(padding="same", strides=(1,1,1), kernel_size=(3,3,4), filters=5, activation="relu")(x)
+	x = keras.layers.UpSampling3D((1,1,2))(x)
+	x = keras.layers.Conv3D(padding="same", strides=(1,1,1), kernel_size=(3,3,4), filters=5, activation="relu")(x)
+	x = keras.layers.UpSampling3D((1,1,2))(x)
+	x = keras.layers.Conv3D(padding="same", strides=(1,1,1), kernel_size=(3,3,4), filters=5, activation="relu")(x)
+	x = keras.layers.Add()([x, inputs])
+	outputs = keras.layers.Conv3D(padding="same", strides=(1,1,1), kernel_size=(3,3,4), filters=1, activation="sigmoid")(x)
+	return keras.Model(inputs = inputs, outputs = outputs)
+
+
+def promisingSD():
+	inputs = keras.layers.Input(shape=(12,14,208,1))
+	x = keras.layers.Conv3D(padding="same", strides=(1,1,1), kernel_size=(3,3,3), filters=8, activation="relu")(inputs)
+	x = keras.layers.MaxPooling3D((1,1,2))(x)
+	x = keras.layers.SpatialDropout3D(0.3)(x)
+	x = keras.layers.Conv3D(padding="same", strides=(1,1,1), kernel_size=(3,3,3), filters=8, activation="relu")(x)
+	x = keras.layers.MaxPooling3D((1,1,2))(x)
+	x = keras.layers.SpatialDropout3D(0.3)(x)
+	c = keras.layers.Conv3D(padding="same", strides=(1,1,1), kernel_size=(3,3,3), filters=8, activation="relu")(x)
+	x = keras.layers.MaxPooling3D((1,1,2))(c)
+	x = keras.layers.SpatialDropout3D(0.3)(x)
+	x = keras.layers.Conv3D(padding="same", strides=(1,1,1), kernel_size=(3,3,3), filters=20, activation="relu")(x)
+	x = keras.layers.SpatialDropout3D(0.3)(x)
+	x = keras.layers.Conv3D(padding="same", strides=(1,1,1), kernel_size=(3,3,3), filters=20, activation="relu")(x)
+	x = keras.layers.UpSampling3D(size=(1,1,2))(x)
+	x = keras.layers.SpatialDropout3D(0.3)(x)
+	x = keras.layers.Conv3D(padding="same", strides=(1,1,1), kernel_size=(3,3,3), filters=8, activation="relu")(x)
+	x = keras.layers.Add()([x, c])
+	x = keras.layers.UpSampling3D(size=(1,1,2))(x)
+	x = keras.layers.SpatialDropout3D(0.3)(x)
+	x = keras.layers.Conv3D(padding="same", strides=(1,1,1), kernel_size=(3,3,3), filters=8, activation="relu")(x)
+	x = keras.layers.UpSampling3D(size=(1,1,2))(x)
+	x = keras.layers.SpatialDropout3D(0.3)(x)
+	x = keras.layers.Conv3D(padding="same", strides=(1,1,1), kernel_size=(3,3,3), filters=8)(x)
+	x = keras.layers.Add()([x,inputs])
+	outputs = keras.layers.Conv3D(padding="same", strides=(1,1,1), kernel_size=(3,3,3), filters=1, activation="sigmoid")(x)
+	return keras.Model(inputs = inputs, outputs = outputs)
+
+def xyz_conv():
+	inputs = keras.layers.Input(shape=(12,14,208,1))
+	x = keras.layers.Conv3D(padding="same", strides=(1,1,1), kernel_size=(5,1,1), filters=10)(inputs)
+	y = keras.layers.Conv3D(padding="same", strides=(1,1,1), kernel_size=(1,5,1), filters=10)(inputs)
+	z = keras.layers.Conv3D(padding="same", strides=(1,1,1), kernel_size=(1,1,5), filters=10)(inputs)
+	x = keras.layers.Add()([x,y,z])
+	x = keras.layers.ReLU()(x)
+	w = keras.layers.MaxPooling3D((1,1,2))(x)
+	x = keras.layers.Conv3D(padding="same", strides=(1,1,1), kernel_size=(5,1,1), filters=7)(w)
+	y = keras.layers.Conv3D(padding="same", strides=(1,1,1), kernel_size=(1,5,1), filters=7)(w)
+	z = keras.layers.Conv3D(padding="same", strides=(1,1,1), kernel_size=(1,1,5), filters=7)(w)
+	x = keras.layers.Add()([x,y,z])
+	x = keras.layers.ReLU()(x)
+	w = keras.layers.MaxPooling3D((1,1,2))(x)
+	x = keras.layers.Conv3D(padding="same", strides=(1,1,1), kernel_size=(5,1,1), filters=7)(w)
+	y = keras.layers.Conv3D(padding="same", strides=(1,1,1), kernel_size=(1,5,1), filters=7)(w)
+	z = keras.layers.Conv3D(padding="same", strides=(1,1,1), kernel_size=(1,1,5), filters=7)(w)
+	c = keras.layers.Add()([x,y,z])
+	x = keras.layers.ReLU()(c)
+	w = keras.layers.MaxPooling3D((1,1,2))(x)
+	x = keras.layers.Conv3D(padding="same", strides=(1,1,1), kernel_size=(5,1,1), filters=7)(w)
+	y = keras.layers.Conv3D(padding="same", strides=(1,1,1), kernel_size=(1,5,1), filters=7)(w)
+	z = keras.layers.Conv3D(padding="same", strides=(1,1,1), kernel_size=(1,1,5), filters=7)(w)
+	x = keras.layers.Add()([x,y,z])
+	x = keras.layers.ReLU()(x)
+	w = keras.layers.UpSampling3D(size=(1,1,2))(x)
+	x = keras.layers.Conv3D(padding="same", strides=(1,1,1), kernel_size=(5,1,1), filters=7)(w)
+	y = keras.layers.Conv3D(padding="same", strides=(1,1,1), kernel_size=(1,5,1), filters=7)(w)
+	z = keras.layers.Conv3D(padding="same", strides=(1,1,1), kernel_size=(1,1,5), filters=7)(w)
+	x = keras.layers.Add()([x,y,z])
+	x = keras.layers.ReLU()(x)
+	x = keras.layers.Add()([x, c])
+	w = keras.layers.UpSampling3D(size=(1,1,2))(x)
+	x = keras.layers.Conv3D(padding="same", strides=(1,1,1), kernel_size=(5,1,1), filters=7)(w)
+	y = keras.layers.Conv3D(padding="same", strides=(1,1,1), kernel_size=(1,5,1), filters=7)(w)
+	z = keras.layers.Conv3D(padding="same", strides=(1,1,1), kernel_size=(1,1,5), filters=7)(w)
+	x = keras.layers.Add()([x,y,z])
+	x = keras.layers.ReLU()(x)
+	w = keras.layers.UpSampling3D(size=(1,1,2))(x)
+	x = keras.layers.Conv3D(padding="same", strides=(1,1,1), kernel_size=(5,1,1), filters=7)(w)
+	y = keras.layers.Conv3D(padding="same", strides=(1,1,1), kernel_size=(1,5,1), filters=7)(w)
+	z = keras.layers.Conv3D(padding="same", strides=(1,1,1), kernel_size=(1,1,5), filters=7)(w)
+	x = keras.layers.Add()([x,y,z])
+	x = keras.layers.ReLU()(x)
+	x = keras.layers.Add()([x,inputs])
+	outputs = keras.layers.Conv3D(padding="same", strides=(1,1,1), kernel_size=(3,3,3), filters=1, activation="sigmoid")(x)
+	return keras.Model(inputs = inputs, outputs = outputs)
+
+def conv1x1x1():
+	inputs = keras.layers.Input(shape=(12,14,208,1))
+	x = keras.layers.Conv3D(padding="same", strides=(1,1,1), kernel_size=(3,3,3), filters=10, activation="relu")(inputs)
+	x = keras.layers.MaxPooling3D((1,1,2))(x)
+	x = keras.layers.Conv3D(padding="same", strides=(1,1,1), kernel_size=(1,1,1), filters=2, activation="relu")(x)
+
+	x = keras.layers.Conv3D(padding="same", strides=(1,1,1), kernel_size=(3,3,3), filters=10, activation="relu")(x)
+	x = keras.layers.MaxPooling3D((1,1,2))(x)
+	x = keras.layers.Conv3D(padding="same", strides=(1,1,1), kernel_size=(1,1,1), filters=2, activation="relu")(x)
+
+	c = keras.layers.Conv3D(padding="same", strides=(1,1,1), kernel_size=(3,3,3), filters=10, activation="relu")(x)
+	x = keras.layers.MaxPooling3D((1,1,2))(c)
+	x = keras.layers.Conv3D(padding="same", strides=(1,1,1), kernel_size=(1,1,1), filters=2, activation="relu")(x)
+
+	x = keras.layers.Conv3D(padding="same", strides=(1,1,1), kernel_size=(3,3,3), filters=10, activation="relu")(x)
+	x = keras.layers.UpSampling3D(size=(1,1,2))(x)
+	x = keras.layers.Conv3D(padding="same", strides=(1,1,1), kernel_size=(1,1,1), filters=2, activation="relu")(x)
+
+	x = keras.layers.Conv3D(padding="same", strides=(1,1,1), kernel_size=(3,3,3), filters=10, activation="relu")(x)
+	x = keras.layers.Add()([x, c])
+	x = keras.layers.UpSampling3D(size=(1,1,2))(x)
+	x = keras.layers.Conv3D(padding="same", strides=(1,1,1), kernel_size=(1,1,1), filters=2, activation="relu")(x)
+
+	x = keras.layers.Conv3D(padding="same", strides=(1,1,1), kernel_size=(3,3,3), filters=10, activation="relu")(x)
+	x = keras.layers.UpSampling3D(size=(1,1,2))(x)
+	x = keras.layers.Conv3D(padding="same", strides=(1,1,1), kernel_size=(1,1,1), filters=2, activation="relu")(x)
+
+	x = keras.layers.Conv3D(padding="same", strides=(1,1,1), kernel_size=(3,3,3), filters=10)(x)
+	x = keras.layers.Add()([x,inputs])
+	outputs = keras.layers.Conv3D(padding="same", strides=(1,1,1), kernel_size=(3,3,3), filters=1, activation="sigmoid")(x)
+	return keras.Model(inputs = inputs, outputs = outputs)
+
+def base_noRes():
+	inputs = keras.layers.Input((12,14,208,1))
+	x = keras.layers.Conv3D(padding="same", strides=(1,1,1), kernel_size=(3,3,4), filters=5, activation="relu")(inputs)
+	x = keras.layers.MaxPooling3D((1,1,2))(x)
+	x = keras.layers.Conv3D(padding="same", strides=(1,1,1), kernel_size=(3,3,4), filters=5, activation="relu")(x)
+	x = keras.layers.MaxPooling3D((1,1,2))(x)
+	x = keras.layers.Conv3D(padding="same", strides=(1,1,1), kernel_size=(3,3,4), filters=20, activation="relu")(x)
+	x = keras.layers.MaxPooling3D((1,1,2))(x)
+	x = keras.layers.Conv3D(padding="same", strides=(1,1,1), kernel_size=(3,3,4), filters=20, activation="relu")(x)
+	x = keras.layers.UpSampling3D((1,1,2))(x)
+	x = keras.layers.Conv3D(padding="same", strides=(1,1,1), kernel_size=(3,3,4), filters=5, activation="relu")(x)
+	x = keras.layers.UpSampling3D((1,1,2))(x)
+	x = keras.layers.Conv3D(padding="same", strides=(1,1,1), kernel_size=(3,3,4), filters=5, activation="relu")(x)
+	x = keras.layers.UpSampling3D((1,1,2))(x)
+	x = keras.layers.Conv3D(padding="same", strides=(1,1,1), kernel_size=(3,3,4), filters=5, activation="relu")(x)
+	outputs = keras.layers.Conv3D(padding="same", strides=(1,1,1), kernel_size=(3,3,4), filters=1, activation="sigmoid")(x)
+	return keras.Model(inputs = inputs, outputs = outputs)
+
+def exp_filters():
+	inputs = keras.layers.Input((12,14,208,1))
+	x = keras.layers.Conv3D(padding="same", strides=(1,1,1), kernel_size=(3,3,3), filters=2, activation="relu")(inputs)
+	x = keras.layers.MaxPooling3D((1,1,2))(x)
+	x = keras.layers.Conv3D(padding="same", strides=(1,1,1), kernel_size=(3,3,3), filters=4, activation="relu")(x)
+	x = keras.layers.MaxPooling3D((1,1,2))(x)
+	x = keras.layers.Conv3D(padding="same", strides=(1,1,1), kernel_size=(3,3,3), filters=8, activation="relu")(x)
+	x = keras.layers.MaxPooling3D((1,1,2))(x)
+	x = keras.layers.Conv3D(padding="same", strides=(1,1,1), kernel_size=(3,3,3), filters=16, activation="relu")(x)
+	x = keras.layers.UpSampling3D((1,1,2))(x)
+	x = keras.layers.Conv3D(padding="same", strides=(1,1,1), kernel_size=(3,3,3), filters=8, activation="relu")(x)
+	x = keras.layers.UpSampling3D((1,1,2))(x)
+	x = keras.layers.Conv3D(padding="same", strides=(1,1,1), kernel_size=(3,3,3), filters=4, activation="relu")(x)
+	x = keras.layers.UpSampling3D((1,1,2))(x)
+	x = keras.layers.Conv3D(padding="same", strides=(1,1,1), kernel_size=(3,3,3), filters=2, activation="relu")(x)
+	outputs = keras.layers.Conv3D(padding="same", strides=(1,1,1), kernel_size=(3,3,3), filters=1, activation="sigmoid")(x)
+	return keras.Model(inputs = inputs, outputs = outputs)
+
+def longTrain_lowCap():
+	inputs = keras.layers.Input((12,14,208,1))
+	x = keras.layers.Conv3D(padding="same", strides=(1,1,1), kernel_size=(3,3,4), filters=5, activation="relu")(inputs)
+	x = keras.layers.MaxPooling3D((1,1,2))(x)
+	x = keras.layers.Conv3D(padding="same", strides=(1,1,1), kernel_size=(3,3,4), filters=5, activation="relu")(x)
+	x = keras.layers.MaxPooling3D((1,1,2))(x)
+	x = keras.layers.Conv3D(padding="same", strides=(1,1,1), kernel_size=(3,3,4), filters=5, activation="relu")(x)
+	x = keras.layers.MaxPooling3D((1,1,2))(x)
+	x = keras.layers.Conv3D(padding="same", strides=(1,1,1), kernel_size=(3,3,4), filters=10, activation="relu")(x)
+	x = keras.layers.UpSampling3D((1,1,2))(x)
+	x = keras.layers.Conv3D(padding="same", strides=(1,1,1), kernel_size=(3,3,4), filters=5, activation="relu")(x)
+	x = keras.layers.UpSampling3D((1,1,2))(x)
+	x = keras.layers.Conv3D(padding="same", strides=(1,1,1), kernel_size=(3,3,4), filters=5, activation="relu")(x)
+	x = keras.layers.UpSampling3D((1,1,2))(x)
+	x = keras.layers.Conv3D(padding="same", strides=(1,1,1), kernel_size=(3,3,4), filters=5, activation="relu")(x)
+	outputs = keras.layers.Conv3D(padding="same", strides=(1,1,1), kernel_size=(3,3,4), filters=1, activation="sigmoid")(x)
+	return keras.Model(inputs = inputs, outputs = outputs)
+
+def longTrain_lowerCap():
+	inputs = keras.layers.Input((12,14,208,1))
+	x = keras.layers.Conv3D(padding="same", strides=(1,1,1), kernel_size=(3,3,4), filters=4, activation="relu")(inputs)
+	x = keras.layers.MaxPooling3D((1,1,2))(x)
+	x = keras.layers.Conv3D(padding="same", strides=(1,1,1), kernel_size=(3,3,4), filters=4, activation="relu")(x)
+	x = keras.layers.MaxPooling3D((1,1,2))(x)
+	x = keras.layers.Conv3D(padding="same", strides=(1,1,1), kernel_size=(3,3,4), filters=4, activation="relu")(x)
+	x = keras.layers.MaxPooling3D((1,1,2))(x)
+	x = keras.layers.Conv3D(padding="same", strides=(1,1,1), kernel_size=(3,3,4), filters=8, activation="relu")(x)
+	x = keras.layers.UpSampling3D((1,1,2))(x)
+	x = keras.layers.Conv3D(padding="same", strides=(1,1,1), kernel_size=(3,3,4), filters=4, activation="relu")(x)
+	x = keras.layers.UpSampling3D((1,1,2))(x)
+	x = keras.layers.Conv3D(padding="same", strides=(1,1,1), kernel_size=(3,3,4), filters=4, activation="relu")(x)
+	x = keras.layers.UpSampling3D((1,1,2))(x)
+	x = keras.layers.Conv3D(padding="same", strides=(1,1,1), kernel_size=(3,3,4), filters=4, activation="relu")(x)
+	outputs = keras.layers.Conv3D(padding="same", strides=(1,1,1), kernel_size=(3,3,4), filters=1, activation="sigmoid")(x)
+	return keras.Model(inputs = inputs, outputs = outputs)
+
+def paralel():
+	inputs = keras.layers.Input((12,14,208,1))
+	x = keras.layers.Conv3D(padding="same", strides=(1,1,1), kernel_size=(3,3,4), filters=2, activation="relu")(inputs)
+	x = keras.layers.MaxPooling3D((1,1,2))(x)
+	x = keras.layers.Conv3D(padding="same", strides=(1,1,1), kernel_size=(3,3,4), filters=4, activation="relu")(x)
+	x = keras.layers.MaxPooling3D((1,1,2))(x)
+	x = keras.layers.Conv3D(padding="same", strides=(1,1,1), kernel_size=(3,3,4), filters=8, activation="relu")(x)
+	x = keras.layers.MaxPooling3D((1,1,2))(x)
+	x = keras.layers.Conv3D(padding="same", strides=(1,1,1), kernel_size=(3,3,4), filters=8, activation="relu")(x)
+	x = keras.layers.UpSampling3D((1,1,2))(x)
+	x = keras.layers.Conv3D(padding="same", strides=(1,1,1), kernel_size=(3,3,4), filters=4, activation="relu")(x)
+	x = keras.layers.UpSampling3D((1,1,2))(x)
+	x = keras.layers.Conv3D(padding="same", strides=(1,1,1), kernel_size=(3,3,4), filters=2, activation="relu")(x)
+	x = keras.layers.UpSampling3D((1,1,2))(x)
+	x = keras.layers.Conv3D(padding="same", strides=(1,1,1), kernel_size=(3,3,4), filters=2, activation="relu")(x)
+
+	y = keras.layers.Conv3D(padding="same", strides=(1,1,1), kernel_size=(3,3,4), filters=2, activation="relu")(inputs)
+	y = keras.layers.MaxPooling3D((1,1,2))(y)
+	y = keras.layers.Conv3D(padding="same", strides=(1,1,1), kernel_size=(3,3,4), filters=4, activation="relu")(y)
+	y = keras.layers.MaxPooling3D((1,1,2))(y)
+	y = keras.layers.Conv3D(padding="same", strides=(1,1,1), kernel_size=(3,3,4), filters=8, activation="relu")(y)
+	y = keras.layers.MaxPooling3D((1,1,2))(y)
+	y = keras.layers.Conv3D(padding="same", strides=(1,1,1), kernel_size=(3,3,4), filters=8, activation="relu")(y)
+	y = keras.layers.UpSampling3D((1,1,2))(y)
+	y = keras.layers.Conv3D(padding="same", strides=(1,1,1), kernel_size=(3,3,4), filters=4, activation="relu")(y)
+	y = keras.layers.UpSampling3D((1,1,2))(y)
+	y = keras.layers.Conv3D(padding="same", strides=(1,1,1), kernel_size=(3,3,4), filters=2, activation="relu")(y)
+	y = keras.layers.UpSampling3D((1,1,2))(y)
+	y = keras.layers.Conv3D(padding="same", strides=(1,1,1), kernel_size=(3,3,4), filters=2, activation="relu")(y)
+	x = keras.layers.Add()([x,y])
+	outputs = keras.layers.Conv3D(padding="same", strides=(1,1,1), kernel_size=(3,3,4), filters=1, activation="sigmoid")(x)
+	return keras.Model(inputs = inputs, outputs = outputs)
+
+# CHECK WALL TIME
 ARCHITECTURES = [
-	{	"name":	"fly",
-		"epochs": 100,
-		"model": keras.Sequential([	keras.layers.Input(shape=(12,14,208,1)),
-										keras.layers.Conv3D(padding="same", strides=(1,1,1), kernel_size=(3,3,12), filters=15, activation="relu"),
-										keras.layers.MaxPooling3D((1,1,2)),
-										keras.layers.Conv3D(padding="same", strides=(1,1,1), kernel_size=(3,3,6), filters=15, activation="relu"),
-										keras.layers.Conv3D(padding="same", strides=(1,1,1), kernel_size=(3,3,3), filters=15, activation="relu"),
-										keras.layers.Conv3D(padding="same", strides=(1,1,1), kernel_size=(2,2,5), filters=15, activation="relu"),
-										keras.layers.Conv3D(padding="same", strides=(1,1,1), kernel_size=(3,3,3), filters=15, activation="relu"),
-										keras.layers.UpSampling3D(size=(1,1,2)),
-										keras.layers.Conv3D(padding="same", strides=(1,1,1), kernel_size=(3,3,10), filters=15, activation="relu"),
-										keras.layers.Conv3D(padding="same", strides=(1,1,1), kernel_size=(3,3,3), filters=1, activation="sigmoid")])
-	}	
+	{	"name":	"base_10",
+		"epochs":	10,
+		"model":	base()},
+	{	"name":	"base_20",
+		"epochs":	20,
+		"model":	base()},
+	{	"name":	"base_30",
+		"epochs":	30,
+		"model":	base()},
+	{	"name":	"base_50",
+		"epochs":	50,
+		"model":	base()},
+		{	"name":	"base_70",
+		"epochs":	70,
+		"model":	base()},
+	{	"name":	"base_100",
+		"epochs":	100,
+		"model":	base()}
 ]
 
-'''
-{"name":	"stonozka_no_pooling",
-		"epochs": 200,
-		"model":	keras.Sequential([	keras.layers.Input(shape=(12,14,208,1)),
-										keras.layers.Conv3D(padding="same", strides=(1,1,1), kernel_size=(3,3,8), filters=10, activation="relu"),
-										keras.layers.Conv3D(padding="same", strides=(1,1,2), kernel_size=(3,3,3), filters=10, activation="relu"),
-										keras.layers.Conv3D(padding="same", strides=(1,1,1), kernel_size=(2,2,5), filters=10, activation="relu"),
-										keras.layers.Conv3D(padding="same", strides=(1,1,2), kernel_size=(3,3,3), filters=10, activation="relu"),
-										keras.layers.Conv3D(padding="same", strides=(1,1,1), kernel_size=(2,2,5), filters=10, activation="relu"),
-										keras.layers.Conv3D(padding="same", strides=(1,1,2), kernel_size=(3,3,3), filters=10, activation="relu"),
-										keras.layers.Conv3D(padding="same", strides=(1,1,1), kernel_size=(3,3,4), filters=10, activation="relu"),
-										keras.layers.Conv3D(padding="same", strides=(1,1,1), kernel_size=(3,3,3), filters=10, activation="relu"),
-										keras.layers.UpSampling3D(size=(1,1,2)),
-										keras.layers.Conv3D(padding="same", strides=(1,1,1), kernel_size=(2,2,5), filters=10, activation="relu"),
-										keras.layers.Conv3D(padding="same", strides=(1,1,1), kernel_size=(3,3,3), filters=10, activation="relu"),
-										keras.layers.UpSampling3D(size=(1,1,2)),
-										keras.layers.Conv3D(padding="same", strides=(1,1,1), kernel_size=(2,2,5), filters=10, activation="relu"),
-										keras.layers.Conv3D(padding="same", strides=(1,1,1), kernel_size=(3,3,3), filters=10, activation="relu"),
-										keras.layers.UpSampling3D(size=(1,1,2)),
-										keras.layers.Conv3D(padding="same", strides=(1,1,1), kernel_size=(3,3,6), filters=10, activation="relu"),
-										keras.layers.Conv3D(padding="same", strides=(1,1,1), kernel_size=(3,3,3), filters=1, activation="sigmoid")])
-	}
-'''
 
-'''{	"name":	"stonozka",
-		"epochs": 200,
-		"model":	keras.Sequential([	keras.layers.Input(shape=(12,14,208,1)),
-										keras.layers.Conv3D(padding="same", strides=(1,1,1), kernel_size=(3,3,8), filters=10),
-										keras.layers.Conv3D(padding="same", strides=(1,1,1), kernel_size=(3,3,3), filters=10, activation="relu"),
-										keras.layers.MaxPooling3D(pool_size=(1,1,2)),
-										keras.layers.Conv3D(padding="same", strides=(1,1,1), kernel_size=(2,2,5), filters=10),
-										keras.layers.Conv3D(padding="same", strides=(1,1,1), kernel_size=(3,3,3), filters=10, activation="relu"),
-										keras.layers.MaxPooling3D(pool_size=(1,1,2)),
-										keras.layers.Conv3D(padding="same", strides=(1,1,1), kernel_size=(2,2,5), filters=10),
-										keras.layers.Conv3D(padding="same", strides=(1,1,1), kernel_size=(3,3,3), filters=10, activation="relu"),
-										keras.layers.MaxPooling3D(pool_size=(1,1,2)),
-										keras.layers.Conv3D(padding="same", strides=(1,1,1), kernel_size=(3,3,4), filters=10),
-										keras.layers.Conv3D(padding="same", strides=(1,1,1), kernel_size=(3,3,3), filters=10, activation="relu"),
-										keras.layers.UpSampling3D(size=(1,1,2)),
-										keras.layers.Conv3D(padding="same", strides=(1,1,1), kernel_size=(2,2,5), filters=10),
-										keras.layers.Conv3D(padding="same", strides=(1,1,1), kernel_size=(3,3,3), filters=10, activation="relu"),
-										keras.layers.UpSampling3D(size=(1,1,2)),
-										keras.layers.Conv3D(padding="same", strides=(1,1,1), kernel_size=(2,2,5), filters=10),
-										keras.layers.Conv3D(padding="same", strides=(1,1,1), kernel_size=(3,3,3), filters=10, activation="relu"),
-										keras.layers.UpSampling3D(size=(1,1,2)),
-										keras.layers.Conv3D(padding="same", strides=(1,1,1), kernel_size=(3,3,6), filters=10),
-										keras.layers.Conv3D(padding="same", strides=(1,1,1), kernel_size=(3,3,3), filters=1, activation="sigmoid")])
-	}'''
+'''ARCHITECTURES = [
+	{	"name":	"TEST_ONLY",
+		"epochs":	10,
+		"model":	keras.Sequential([keras.layers.Input((12,14,208,1)), keras.layers.Conv3D(padding="same", strides=(1,1,1), kernel_size=(3,3,3), filters=1, activation="sigmoid")])
+	}
+]'''
