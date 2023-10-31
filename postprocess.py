@@ -207,8 +207,8 @@ def findThreshold(modelAPI :ModelWrapper, optimisedFunc, datapath :str, experime
 	'''
 
 	data_loader = DataLoader(datapath)
-	signals = data_loader.getBatch(experimental, False, 11)
-	noises = data_loader.getBatch(experimental, True, 11)
+	signals = data_loader.getBatch(experimental, False, 21)
+	noises = data_loader.getBatch(experimental, True, 21)
 	data_num = signals.shape[0]
 
 	if experimental:
@@ -295,7 +295,7 @@ def plotThresholdPlots(thresholds, signal_metrics, noise_metrics, optimised_func
 
 def postprocessModel(modelpath, model_name, datapath):
 	print("> Loading model...")
-	modelAPI = ModelWrapper( keras.models.load_model(modelpath + "model"), model_name )
+	modelAPI = ModelWrapper( keras.models.load_model(modelpath + "model", compile=False), model_name )
 
 	print("> Plotting model architecture...")
 	plotModelArchitecture(modelAPI, modelpath)

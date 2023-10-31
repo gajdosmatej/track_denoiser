@@ -113,7 +113,7 @@ class ModelWrapper:
 		if path[-1] != "/":	path += "/"
 		threshold_f = open(path + "threshold.txt", "r")
 		threshold = float( threshold_f.read() )
-		return ModelWrapper(keras.models.load_model(path + "model"), model_name, threshold)
+		return ModelWrapper(keras.models.load_model(path + "model", compile=False), model_name, threshold)
 
 
 	def evaluateSingleEvent(self, event :numpy.ndarray):
