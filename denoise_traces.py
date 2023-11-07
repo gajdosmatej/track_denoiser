@@ -399,7 +399,7 @@ class Plotting:
 			if input("Enter 'q' to stop plotting (or anything else for another plot):") == "q":	break
 	
 	@staticmethod
-	def getPlot3D(modelAPI :ModelWrapper, noise_event :numpy.ndarray, are_data_experimental :bool = None, rotation=(0,0,0), event_name :str = None):
+	def getPlot3D(modelAPI :ModelWrapper, noise_event :numpy.ndarray, are_data_experimental :bool = None, event_name :str = None):
 		'''
 		Return 3D plot of @noise_event and its reconstruction by @model.
 		@model ... Keras model reconstructing track in this plot.
@@ -411,49 +411,41 @@ class Plotting:
 		'''
 
 		fig = matplotlib.pyplot.figure(figsize=matplotlib.pyplot.figaspect(0.5))
-		
 		ax1 = fig.add_subplot(1, 2, 1, projection='3d')
-		xs, ys, zs = noise_event.nonzero()
-		vals = numpy.array([noise_event[xs[i],ys[i],zs[i]] for i in range(len(xs))])
-		sctr1 = ax1.scatter(xs, ys, zs, c=vals, cmap="plasma", marker="s", s=80)
-		ax1.set_xlim(0, 11)
-		ax1.set_xlabel("$x$")
-		ax1.set_ylim(0, 13)
-		ax1.set_ylabel("$y$")
-		ax1.set_zlim(0, 200)
-		ax1.set_zlabel("$z$")
-		title = title = "Noisy "
+		title = ""
 		if are_data_experimental:	title += "Experimental "
 		elif are_data_experimental is False:	title += "Generated "
 		if event_name is not None:	title += "(" + event_name + ") "
 		title += "Data"
-		ax1.set_title(title)
-		ax1.view_init(*rotation)	#rotate the scatter plot, useful for animation
+		sctr = Plotting.plot3DToAxis(noise_event, ax1, title)
 
 		reconstr_event = modelAPI.evaluateSingleEvent( noise_event / (numpy.max(noise_event) if numpy.max(noise_event) != 0 else 1) )
 		classificated_event = modelAPI.classify(reconstr_event)
 		ax2 = fig.add_subplot(1, 2, 2, projection='3d')
-		xs, ys, zs = classificated_event.nonzero()
-		vals = numpy.array([classificated_event[xs[i],ys[i],zs[i]] for i in range(len(xs))])
-		sctr2 = ax2.scatter(xs, ys, zs, c=vals, marker="s", s=80)
-		ax2.set_xlim(0, 11)
-		ax2.set_xlabel("$x$")
-		ax2.set_ylim(0, 13)
-		ax2.set_ylabel("$y$")
-		ax2.set_zlim(0, 200)
-		ax2.set_zlabel("$z$")
-		ax2.view_init(*rotation)
 		title = "Reconstruction and Threshold Classification\n"
 		title += "by Model " + modelAPI.name
-		ax2.set_title(title)
+		Plotting.plot3DToAxis(classificated_event, ax2, title)
 
-		#fig.subplots_adjust(right=0.8)
-		#cbar_ax = fig.add_axes([0.85, 0.15, 0.05, 0.7])
-		cb = fig.colorbar(sctr1, ax=[ax1, ax2], orientation="horizontal")
+		cb = fig.colorbar(sctr, ax=[ax1, ax2], orientation="horizontal")
 		cb.set_label("$E$")
 
 		return fig, ax1, ax2
 
+
+	def plot3DToAxis(event :numpy.ndarray, ax, title :str = ""):
+		def scaleSize(val):	return val*150 + 50
+		xs, ys, zs = event.nonzero()
+		vals = numpy.array([event[xs[i],ys[i],zs[i]] for i in range(len(xs))])
+		sctr = ax.scatter(xs, ys, zs, c=vals, cmap="plasma", marker="s", s=scaleSize(vals))
+		ax.set_xlim(0, 11)
+		ax.set_xlabel("$x$")
+		ax.set_ylim(0, 13)
+		ax.set_ylabel("$y$")
+		ax.set_zlim(0, 200)
+		ax.set_zlabel("$z$")
+		ax.set_title(title)
+		ax.set_box_aspect((12, 14, 50))
+		return sctr
 
 	def animation3D(path :str, modelAPI :ModelWrapper, noise_event :numpy.ndarray, are_data_experimental :bool = None):
 		fig, ax1, ax2 = Plotting.getPlot3D(modelAPI, noise_event, are_data_experimental)
