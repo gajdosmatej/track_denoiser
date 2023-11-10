@@ -16,7 +16,7 @@ def normalise(arr :numpy.ndarray):
 class Generator:
 	DIMENSIONS = (12, 14, 208)
 	CURVATURE_SIGMA = 0.05	#sigma of normal distribution, which updateDirection samples R3 vector from
-	DIRECTION_NORMS = numpy.array([0.33,0.33,1.])	#factors which multiply each coordinate of direction unit vector (main aim is to increase velocity in Z direction in order to compensate dim_Z >> dim_X, dim_Y)
+	DIRECTION_NORMS = numpy.array([0.1,0.1,1.])	#factors which multiply each coordinate of direction unit vector (main aim is to increase velocity in Z direction in order to compensate dim_Z >> dim_X, dim_Y)
 	SIGNAL_CHANGE_DIRECTION_PROBABILITY = 0.1	#the signal probability that updateDirection is called in a step
 	NOISE_TRACKS_NUM_RANGE = (15,30)	#the minimal and maximal number of noise tracks
 	DATA_DIR_PATH = "./data"
@@ -92,6 +92,10 @@ class Generator:
 				self.space[coords] = 1
 			#if numpy.random.random() < self.SIGNAL_CHANGE_DIRECTION_PROBABILITY:	self.updateDirection(direction)
 			position += direction
+		
+		if len(history) < 15:	#too short track
+			self.initialise()
+			return self.addSignal()
 		return history
 
 	def addNoise(self):
@@ -116,7 +120,7 @@ class Generator:
 			if numpy.random.random() < 0.1:	E = numpy.random.uniform(0., 1.5)	#discontinuity
 			self.space[coord] = E
 			E += numpy.random.uniform(-0.4, 0.4)
-			if E < 0:	E = numpy.random.uniform(0, 0.1)
+			if E < 0:	E = (numpy.random.uniform(0, 0.1) if numpy.random.random() < 0.5 else 0)
 			#E_prev, E = E, E + (E-E_prev) + numpy.random.normal(0,0.1)
 			#if E < 0:	E = 0
 
@@ -253,6 +257,20 @@ class Support:
 		cb.set_label("$E$")
 		matplotlib.pyplot.show()
 '''
+
+'''from denoise_traces import Plotting
+generator = Generator()
+while True:
+	generator.initialise()
+	history = generator.addSignal()
+	generator.energise(history)
+	fig = matplotlib.pyplot.figure(figsize=matplotlib.pyplot.figaspect(1))
+	ax = fig.add_subplot(1, 1, 1, projection='3d')
+	Plotting.plot3DToAxis(generator.space, ax)
+	fig, ax = matplotlib.pyplot.subplots(2)
+	ax[0].imshow(numpy.sum(generator.space,0),"gray")
+	ax[1].imshow(numpy.sum(generator.space,1),"gray")
+	matplotlib.pyplot.show()'''
 
 if __name__ == "__main__":
 	num_gen, is_3D, path = None, None, None
