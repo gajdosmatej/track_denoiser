@@ -17,15 +17,86 @@ def normalise(event :numpy.ndarray):
 	if M == 0:	return event
 	return event / M
 
+
+class Clusters:
+	'''Class wrapping methods for clusterisation.'''
+	
+	@staticmethod
+	def getActiveZone():
+		'''Return the space in which the tracks are located.'''
+		data_loader = DataLoader("./data")
+		clean = data_loader.getBatch(True, False, track_type="alltracks")
+		zone = numpy.sum(clean, 0)
+		return numpy.where(zone > 0.01, 1, 0)
+
+	@staticmethod
+	def isClusterInActiveZone(cluster, zone):
+		'''Check whether the main part of @cluster is located in active zone @zone.'''
+		num_in_zone = 0
+		threshold = 0.8
+
+		for coord in cluster:
+			if zone[coord] != 0:	num_in_zone += 1
+		
+		return ( num_in_zone/len(cluster) > threshold )
+
+	@staticmethod
+	def isGoodCluster(cluster, zone):
+		'''Check conditions for good cluster.'''
+		return Clusters.isClusterInActiveZone(cluster, zone) and len(cluster) > 10
+
+	@staticmethod
+	def clusterise(event):
+		'''Create list of clusters (represented by lists of coordinates) from input @event.'''
+		event = numpy.copy(event)
+		clusters = []
+
+		def neighbourhood(coord):
+			x,y,z = coord
+			for i in [-2,-1,0,1,2]:
+				for j in range(-2 + abs(i), 2 - abs(i) + 1):
+					for k in range(-7,8):
+						if 0 <= x+i < 12 and 0 <= y+j < 14 and 0 <= z+k < 208:
+							yield (x+i, y+j, z+k)
+
+		remaining_tracks = event.nonzero()
+		while remaining_tracks[0].size != 0:
+			cluster = [(remaining_tracks[0][0], remaining_tracks[1][0], remaining_tracks[2][0])]
+			event[cluster[0]] = 0
+			stack = [cluster[0]]
+			while stack != []:
+				coord = stack.pop()
+				for neighbour in neighbourhood(coord):
+					if event[neighbour] != 0:
+						cluster.append(neighbour)
+						stack.append(neighbour)
+						event[neighbour] = 0
+			clusters.append(cluster)
+			remaining_tracks = event.nonzero()
+		return clusters
+
+
 class Metric:
+	'''
+	Class wrapping methods for metrics calculations.
+	'''
+
 	epsilon = 0.0000001
 
 	def reconstructionMetric(classified, ground_truth):
+		'''
+		Return the relative number of reconstructed signal tiles.
+		'''
+
 		all_signal = numpy.sum( numpy.where(ground_truth > Metric.epsilon, 1, 0) )
 		if all_signal == 0:	return None
 		return numpy.sum( numpy.where(ground_truth > Metric.epsilon, classified, 0) ) / all_signal
 	
 	def noiseMetric(noisy, classified, ground_truth):
+		'''
+		Return the relative number of unfiltered noise tiles.
+		'''
+
 		num_signal_tiles = numpy.sum( numpy.where(ground_truth > Metric.epsilon, classified, 0) )
 		num_noise_tiles = numpy.sum(classified) - num_signal_tiles
 		num_all_noise = numpy.sum( numpy.where(noisy > Metric.epsilon, 1, 0) ) - numpy.sum( numpy.where(ground_truth > Metric.epsilon, 1, 0) )
@@ -98,6 +169,10 @@ class SpatialAttention(keras.layers.Layer):
 
 
 class ModelWrapper:
+	'''
+	Wrapper for Keras Model class with additional convenient methods.
+	'''
+
 	def __init__(self, model :keras.Model, model_name :str = "", threshold :float = None):
 		self.model = model
 		self.name = model_name
@@ -166,6 +241,7 @@ class DataLoader:
 	'''
 	Class for loading X17 data and generated data in tensorflow datasets.
 	'''
+
 	def __init__(self, path :str):
 		'''
 		Create a new instance of DataLoader class.
@@ -234,6 +310,10 @@ class DataLoader:
 
 
 	def getValidationData(self):
+		'''
+		Return tuple (X17_noisy, X17_clean), which is convenient format for Keras Model.fit validation_data argument.
+		'''
+
 		noisy, clean = self.getBatch(True, True, track_type="goodtracks"), self.getBatch(True, False, track_type="goodtracks")
 		noisy = numpy.reshape(noisy, (*noisy.shape, 1))
 		clean = numpy.reshape(clean, (*clean.shape, 1))
@@ -282,6 +362,10 @@ class DataLoader:
 			return numpy.load(self.path + "simulated/" + ("noisy/" if noisy else "clean/") + str(file_id) + ".npy")
 	
 	def getX17Names(self):
+		'''
+		Return X17 track names in the same order as alltracks (i.e. DataLoader.getBatch(experimental=True, track_type='alltracks')). 
+		'''
+
 		names = []
 		for (name, _) in self.loadX17Data("goodtracks", False):	names.append(name)
 		for (name, _) in self.loadX17Data("othertracks", False):	names.append(name)
@@ -290,6 +374,10 @@ class DataLoader:
 
 
 class Plotting:
+	'''
+	Class wrapping methods for plotting.
+	'''
+
 	@staticmethod
 	def plotEvent(noisy, reconstruction, classificated = None, are_data_experimental = None, model_name = '', axes=[0,1,2], use_log :bool = False, event_name :str = None):
 		'''
@@ -345,6 +433,10 @@ class Plotting:
 
 	@staticmethod
 	def plotEventOneAxis(modelAPI :ModelWrapper, noise_data :numpy.ndarray, axis :int, are_data_experimental :bool = None, event_name :str = None):
+		'''
+		Plot projection of @noise_data, its @modelAPI reconstruction and classification in specified @axis. 
+		'''
+
 		x_labels = ['z', 'z', 'y']
 		y_labels = ['y', 'x', 'x']
 		
@@ -385,6 +477,7 @@ class Plotting:
 		'''
 		Plot @model's reconstruction of random events from @noise_data. If @threshold is specified, plot also the final classification after applying @threshold to reconstruciton.
 		'''
+
 		while True:
 			index = numpy.random.randint(0, len(noise_data))
 			noisy = noise_data[index]
@@ -398,6 +491,7 @@ class Plotting:
 			matplotlib.pyplot.show()
 			if input("Enter 'q' to stop plotting (or anything else for another plot):") == "q":	break
 	
+
 	@staticmethod
 	def getPlot3D(modelAPI :ModelWrapper, noise_event :numpy.ndarray, are_data_experimental :bool = None, event_name :str = None):
 		'''
@@ -433,6 +527,10 @@ class Plotting:
 
 
 	def plot3DToAxis(event :numpy.ndarray, ax, title :str = ""):
+		'''
+		Create 3D plot of @event on specified matplotlib axis @ax. 
+		'''
+
 		def scaleSize(val):	return val*150 + 50
 		xs, ys, zs = event.nonzero()
 		vals = numpy.array([event[xs[i],ys[i],zs[i]] for i in range(len(xs))])
@@ -448,6 +546,10 @@ class Plotting:
 		return sctr
 
 	def animation3D(path :str, modelAPI :ModelWrapper, noise_event :numpy.ndarray, are_data_experimental :bool = None):
+		'''
+		Create and save gif of rotating 3D plot.
+		'''
+
 		fig, ax1, ax2 = Plotting.getPlot3D(modelAPI, noise_event, are_data_experimental)
 
 		def run(i):	
