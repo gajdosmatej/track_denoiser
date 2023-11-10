@@ -6,7 +6,7 @@ import os
 import matplotlib.pyplot
 import matplotlib.animation
 import copy
-from denoise_traces import DataLoader, Plotting, ModelWrapper
+from classes import DataLoader, Plotting, ModelWrapper
 
 
 def plotHistory(modelpath :str, model_name :str):

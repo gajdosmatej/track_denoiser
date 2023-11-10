@@ -1,2 +1,2 @@
-scp ./run_several_architectures.py ./architectures_list.py train_and_postprocess.sh cluster_script.sh ../denoise_traces.py ../postprocess.py gajdoma6@tarkil.metacentrum.cz:/storage/plzen1/home/gajdoma6/cluster/
+scp ./run_several_architectures.py ./architectures_list.py train_and_postprocess.sh cluster_script.sh ../classes.py ../postprocess.py gajdoma6@tarkil.metacentrum.cz:/storage/plzen1/home/gajdoma6/cluster/
 ssh gajdoma6@tarkil.metacentrum.cz

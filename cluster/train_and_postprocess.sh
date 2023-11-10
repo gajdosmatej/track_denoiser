@@ -1,14 +1,14 @@
 #!/bin/bash
 #PBS -N batch_job
 #PBS -l select=1:mem=32gb:scratch_local=20gb:ngpus=1:gpu_cap=cuda60
-#PBS -l walltime=10:00:00
+#PBS -l walltime=20:00:00
 #PBS -q gpu
 
 DATADIR=/storage/plzen1/home/gajdoma6
 
 test -n "$SCRATCHDIR" || { echo >&2 "Variable SCRATCHDIR is not set!"; exit 1; }
 
-cp -r $DATADIR/cluster/run_several_architectures.py $DATADIR/cluster/architectures_list.py $DATADIR/cluster/denoise_traces.py $DATADIR/cluster/postprocess.py $SCRATCHDIR
+cp -r $DATADIR/cluster/run_several_architectures.py $DATADIR/cluster/architectures_list.py $DATADIR/cluster/classes.py $DATADIR/cluster/postprocess.py $SCRATCHDIR
 cd $SCRATCHDIR
 
 mkdir ./raw_models

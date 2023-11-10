@@ -1,4 +1,4 @@
-from denoise_traces import Model, Plotting, QualityEstimator
+from classes import Model, Plotting, QualityEstimator
 import numpy
 from tensorflow import keras
 import keras.utils

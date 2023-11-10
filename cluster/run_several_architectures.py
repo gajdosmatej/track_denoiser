@@ -3,7 +3,7 @@ from tensorflow import keras
 import tensorflow
 import architectures_list
 import json
-from denoise_traces import DataLoader
+from classes import DataLoader
 
 for architecture in architectures_list.ARCHITECTURES:
 	data_loader = DataLoader("/data/")

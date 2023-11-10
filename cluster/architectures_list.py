@@ -1,5 +1,5 @@
 from tensorflow import keras
-from denoise_traces import SEAttention, SpatialAttention
+from classes import SEAttention, SpatialAttention
 
 
 def base():
@@ -453,24 +453,21 @@ def paralel():
 
 # CHECK WALL TIME
 ARCHITECTURES = [
-	{	"name":	"base_10",
-		"epochs":	10,
-		"model":	base()},
-	{	"name":	"base_20",
-		"epochs":	20,
-		"model":	base()},
-	{	"name":	"base_30",
-		"epochs":	30,
-		"model":	base()},
-	{	"name":	"base_50",
-		"epochs":	50,
-		"model":	base()},
-		{	"name":	"base_70",
-		"epochs":	70,
-		"model":	base()},
-	{	"name":	"base_100",
-		"epochs":	100,
-		"model":	base()}
+	{	"name":	"xyz_conv",
+		"epochs":	300,
+		"model":	xyz_conv()},
+	{	"name":	"conv1x1x1",
+		"epochs":	300,
+		"model":	conv1x1x1()},
+	{	"name":	"longTrain_lowCap",
+		"epochs":	300,
+		"model":	longTrain_lowCap()},
+	{	"name":	"longTrain_lowerCap",
+		"epochs":	300,
+		"model":	longTrain_lowerCap()},
+		{	"name":	"paralel",
+		"epochs":	300,
+		"model":	paralel()}
 ]
 
 
