@@ -29,6 +29,7 @@ class Clusters:
 		zone = numpy.sum(clean, 0)
 		return numpy.where(zone > 0.01, 1, 0)
 
+
 	@staticmethod
 	def isClusterInActiveZone(cluster, zone):
 		'''Check whether the main part of @cluster is located in active zone @zone.'''
@@ -40,10 +41,12 @@ class Clusters:
 		
 		return ( num_in_zone/len(cluster) > threshold )
 
+
 	@staticmethod
 	def isGoodCluster(cluster, zone):
 		'''Check conditions for good cluster.'''
 		return Clusters.isClusterInActiveZone(cluster, zone) and len(cluster) > 10
+
 
 	@staticmethod
 	def clusterise(event):
@@ -83,6 +86,7 @@ class Metric:
 
 	epsilon = 0.0000001
 
+	@staticmethod
 	def reconstructionMetric(classified, ground_truth):
 		'''
 		Return the relative number of reconstructed signal tiles.
@@ -91,7 +95,9 @@ class Metric:
 		all_signal = numpy.sum( numpy.where(ground_truth > Metric.epsilon, 1, 0) )
 		if all_signal == 0:	return None
 		return numpy.sum( numpy.where(ground_truth > Metric.epsilon, classified, 0) ) / all_signal
-	
+
+
+	@staticmethod
 	def noiseMetric(noisy, classified, ground_truth):
 		'''
 		Return the relative number of unfiltered noise tiles.
@@ -102,6 +108,27 @@ class Metric:
 		num_all_noise = numpy.sum( numpy.where(noisy > Metric.epsilon, 1, 0) ) - numpy.sum( numpy.where(ground_truth > Metric.epsilon, 1, 0) )
 		if num_all_noise == 0:	return None
 		return num_noise_tiles / num_all_noise
+
+
+	@staticmethod
+	def getRatioOfGoodClusters(data):
+		'''
+		Return the ratio of good clusters in @data. If no cluster is found in @data, return -1.
+		'''
+
+		zone = Clusters.getActiveZone()
+		good_counter = 0
+		all_counter = 0
+		for event in data:
+			clusters = Clusters.clusterise(event)
+			if clusters == []:	continue
+			for cluster in clusters:
+				all_counter += 1
+				if Clusters.isGoodCluster(cluster, zone):
+					good_counter += 1
+
+		return (good_counter / all_counter if all_counter != 0 else -1)
+
 
 
 class RandomNoise(keras.layers.Layer):
@@ -249,6 +276,15 @@ class DataLoader:
 		'''
 
 		self.path = path + ('/' if path[-1] != '/' else '')
+
+
+	def getEventFromName(self, name: str, noisy :bool):
+		'''
+		Return X17 event from its @name.
+		'''
+
+		names, events = self.getX17Names(), self.getBatch(True, noisy, track_type="alltracks")
+		return [event for (n, event) in zip(names, events) if n == name][0]
 
 
 	def loadX17Data(self, track_type :str, noisy :bool):
