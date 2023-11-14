@@ -594,3 +594,20 @@ class Plotting:
 
 		anim = matplotlib.animation.FuncAnimation(fig, func=run, frames=360, interval=20, blit=False)
 		anim.save(path, fps=30, dpi=200, writer="pillow")
+
+
+	def plotTileDistribution(data :numpy.ndarray, modelAPI :ModelWrapper):
+		'''
+		Create histogram of tile z coordinates distribution 
+		'''
+
+		classified = modelAPI.classify( modelAPI.evaluateBatch(data) )
+		fig, ax = matplotlib.pyplot.subplots(1)
+		counts_raw = numpy.sum(numpy.where(data>000000.1,1,0), axis=(0,1,2))
+		counts_rec = numpy.sum(classified, axis=(0,1,2))
+		ax.hist(x=[i for i in range(208)], bins=69, weights=counts_raw, label="Noisy", histtype="step")
+		ax.hist(x=[i for i in range(208)], bins=69, weights=counts_rec, label="Reconstructed")
+		ax.set_title("Distribution of X17 tile z coordinates after reconstruction by model " + modelAPI.name)
+		ax.set_xlabel("z")
+		ax.set_ylabel("#")
+		ax.legend()
