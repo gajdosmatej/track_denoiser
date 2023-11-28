@@ -1,0 +1,72 @@
+Model: "model"
+__________________________________________________________________________________________________
+ Layer (type)                   Output Shape         Param #     Connected to                     
+==================================================================================================
+ input_1 (InputLayer)           [(None, 12, 14, 208  0           []                               
+                                , 1)]                                                             
+                                                                                                  
+ conv3d (Conv3D)                (None, 12, 14, 208,  224         ['input_1[0][0]']                
+                                 8)                                                               
+                                                                                                  
+ max_pooling3d (MaxPooling3D)   (None, 12, 14, 104,  0           ['conv3d[0][0]']                 
+                                 8)                                                               
+                                                                                                  
+ conv3d_1 (Conv3D)              (None, 12, 14, 104,  3472        ['max_pooling3d[0][0]']          
+                                 16)                                                              
+                                                                                                  
+ spatial_dropout3d (SpatialDrop  (None, 12, 14, 104,  0          ['conv3d_1[0][0]']               
+ out3D)                          16)                                                              
+                                                                                                  
+ max_pooling3d_1 (MaxPooling3D)  (None, 12, 14, 52,   0          ['spatial_dropout3d[0][0]']      
+                                16)                                                               
+                                                                                                  
+ conv3d_2 (Conv3D)              (None, 12, 14, 52,   6928        ['max_pooling3d_1[0][0]']        
+                                16)                                                               
+                                                                                                  
+ spatial_dropout3d_1 (SpatialDr  (None, 12, 14, 52,   0          ['conv3d_2[0][0]']               
+ opout3D)                       16)                                                               
+                                                                                                  
+ max_pooling3d_2 (MaxPooling3D)  (None, 12, 14, 26,   0          ['spatial_dropout3d_1[0][0]']    
+                                16)                                                               
+                                                                                                  
+ conv3d_3 (Conv3D)              (None, 12, 14, 26,   6928        ['max_pooling3d_2[0][0]']        
+                                16)                                                               
+                                                                                                  
+ spatial_dropout3d_2 (SpatialDr  (None, 12, 14, 26,   0          ['conv3d_3[0][0]']               
+ opout3D)                       16)                                                               
+                                                                                                  
+ up_sampling3d (UpSampling3D)   (None, 12, 14, 52,   0           ['spatial_dropout3d_2[0][0]']    
+                                16)                                                               
+                                                                                                  
+ conv3d_4 (Conv3D)              (None, 12, 14, 52,   6928        ['up_sampling3d[0][0]']          
+                                16)                                                               
+                                                                                                  
+ add (Add)                      (None, 12, 14, 52,   0           ['conv3d_4[0][0]',               
+                                16)                               'conv3d_2[0][0]']               
+                                                                                                  
+ spatial_dropout3d_3 (SpatialDr  (None, 12, 14, 52,   0          ['add[0][0]']                    
+ opout3D)                       16)                                                               
+                                                                                                  
+ up_sampling3d_1 (UpSampling3D)  (None, 12, 14, 104,  0          ['spatial_dropout3d_3[0][0]']    
+                                 16)                                                              
+                                                                                                  
+ conv3d_5 (Conv3D)              (None, 12, 14, 104,  3464        ['up_sampling3d_1[0][0]']        
+                                 8)                                                               
+                                                                                                  
+ up_sampling3d_2 (UpSampling3D)  (None, 12, 14, 208,  0          ['conv3d_5[0][0]']               
+                                 8)                                                               
+                                                                                                  
+ conv3d_6 (Conv3D)              (None, 12, 14, 208,  776         ['up_sampling3d_2[0][0]']        
+                                 8)                                                               
+                                                                                                  
+ add_1 (Add)                    (None, 12, 14, 208,  0           ['conv3d_6[0][0]',               
+                                 8)                               'input_1[0][0]']                
+                                                                                                  
+ conv3d_7 (Conv3D)              (None, 12, 14, 208,  217         ['add_1[0][0]']                  
+                                 1)                                                               
+                                                                                                  
+==================================================================================================
+Total params: 28,937
+Trainable params: 28,937
+Non-trainable params: 0
+__________________________________________________________________________________________________

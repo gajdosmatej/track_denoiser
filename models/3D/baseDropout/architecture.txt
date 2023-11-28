@@ -1,0 +1,66 @@
+Model: "model_3"
+__________________________________________________________________________________________________
+ Layer (type)                   Output Shape         Param #     Connected to                     
+==================================================================================================
+ input_4 (InputLayer)           [(None, 12, 14, 208  0           []                               
+                                , 1)]                                                             
+                                                                                                  
+ dropout_1 (Dropout)            (None, 12, 14, 208,  0           ['input_4[0][0]']                
+                                 1)                                                               
+                                                                                                  
+ conv3d_25 (Conv3D)             (None, 12, 14, 208,  185         ['dropout_1[0][0]']              
+                                 5)                                                               
+                                                                                                  
+ max_pooling3d_6 (MaxPooling3D)  (None, 12, 14, 104,  0          ['conv3d_25[0][0]']              
+                                 5)                                                               
+                                                                                                  
+ dropout_2 (Dropout)            (None, 12, 14, 104,  0           ['max_pooling3d_6[0][0]']        
+                                 5)                                                               
+                                                                                                  
+ conv3d_26 (Conv3D)             (None, 12, 14, 104,  905         ['dropout_2[0][0]']              
+                                 5)                                                               
+                                                                                                  
+ max_pooling3d_7 (MaxPooling3D)  (None, 12, 14, 52,   0          ['conv3d_26[0][0]']              
+                                5)                                                                
+                                                                                                  
+ conv3d_27 (Conv3D)             (None, 12, 14, 52,   3620        ['max_pooling3d_7[0][0]']        
+                                20)                                                               
+                                                                                                  
+ max_pooling3d_8 (MaxPooling3D)  (None, 12, 14, 26,   0          ['conv3d_27[0][0]']              
+                                20)                                                               
+                                                                                                  
+ dropout_3 (Dropout)            (None, 12, 14, 26,   0           ['max_pooling3d_8[0][0]']        
+                                20)                                                               
+                                                                                                  
+ conv3d_28 (Conv3D)             (None, 12, 14, 26,   14420       ['dropout_3[0][0]']              
+                                20)                                                               
+                                                                                                  
+ up_sampling3d_9 (UpSampling3D)  (None, 12, 14, 52,   0          ['conv3d_28[0][0]']              
+                                20)                                                               
+                                                                                                  
+ conv3d_29 (Conv3D)             (None, 12, 14, 52,   3605        ['up_sampling3d_9[0][0]']        
+                                5)                                                                
+                                                                                                  
+ up_sampling3d_10 (UpSampling3D  (None, 12, 14, 104,  0          ['conv3d_29[0][0]']              
+ )                               5)                                                               
+                                                                                                  
+ conv3d_30 (Conv3D)             (None, 12, 14, 104,  905         ['up_sampling3d_10[0][0]']       
+                                 5)                                                               
+                                                                                                  
+ up_sampling3d_11 (UpSampling3D  (None, 12, 14, 208,  0          ['conv3d_30[0][0]']              
+ )                               5)                                                               
+                                                                                                  
+ conv3d_31 (Conv3D)             (None, 12, 14, 208,  905         ['up_sampling3d_11[0][0]']       
+                                 5)                                                               
+                                                                                                  
+ add_4 (Add)                    (None, 12, 14, 208,  0           ['conv3d_31[0][0]',              
+                                 5)                               'input_4[0][0]']                
+                                                                                                  
+ conv3d_32 (Conv3D)             (None, 12, 14, 208,  181         ['add_4[0][0]']                  
+                                 1)                                                               
+                                                                                                  
+==================================================================================================
+Total params: 24,726
+Trainable params: 24,726
+Non-trainable params: 0
+__________________________________________________________________________________________________

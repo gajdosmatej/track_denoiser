@@ -1,0 +1,96 @@
+Model: "model_4"
+__________________________________________________________________________________________________
+ Layer (type)                   Output Shape         Param #     Connected to                     
+==================================================================================================
+ input_5 (InputLayer)           [(None, 12, 14, 208  0           []                               
+                                , 1)]                                                             
+                                                                                                  
+ conv3d_52 (Conv3D)             (None, 12, 14, 208,  74          ['input_5[0][0]']                
+                                 2)                                                               
+                                                                                                  
+ conv3d_59 (Conv3D)             (None, 12, 14, 208,  74          ['input_5[0][0]']                
+                                 2)                                                               
+                                                                                                  
+ max_pooling3d_12 (MaxPooling3D  (None, 12, 14, 104,  0          ['conv3d_52[0][0]']              
+ )                               2)                                                               
+                                                                                                  
+ max_pooling3d_15 (MaxPooling3D  (None, 12, 14, 104,  0          ['conv3d_59[0][0]']              
+ )                               2)                                                               
+                                                                                                  
+ conv3d_53 (Conv3D)             (None, 12, 14, 104,  292         ['max_pooling3d_12[0][0]']       
+                                 4)                                                               
+                                                                                                  
+ conv3d_60 (Conv3D)             (None, 12, 14, 104,  292         ['max_pooling3d_15[0][0]']       
+                                 4)                                                               
+                                                                                                  
+ max_pooling3d_13 (MaxPooling3D  (None, 12, 14, 52,   0          ['conv3d_53[0][0]']              
+ )                              4)                                                                
+                                                                                                  
+ max_pooling3d_16 (MaxPooling3D  (None, 12, 14, 52,   0          ['conv3d_60[0][0]']              
+ )                              4)                                                                
+                                                                                                  
+ conv3d_54 (Conv3D)             (None, 12, 14, 52,   1160        ['max_pooling3d_13[0][0]']       
+                                8)                                                                
+                                                                                                  
+ conv3d_61 (Conv3D)             (None, 12, 14, 52,   1160        ['max_pooling3d_16[0][0]']       
+                                8)                                                                
+                                                                                                  
+ max_pooling3d_14 (MaxPooling3D  (None, 12, 14, 26,   0          ['conv3d_54[0][0]']              
+ )                              8)                                                                
+                                                                                                  
+ max_pooling3d_17 (MaxPooling3D  (None, 12, 14, 26,   0          ['conv3d_61[0][0]']              
+ )                              8)                                                                
+                                                                                                  
+ conv3d_55 (Conv3D)             (None, 12, 14, 26,   2312        ['max_pooling3d_14[0][0]']       
+                                8)                                                                
+                                                                                                  
+ conv3d_62 (Conv3D)             (None, 12, 14, 26,   2312        ['max_pooling3d_17[0][0]']       
+                                8)                                                                
+                                                                                                  
+ up_sampling3d_12 (UpSampling3D  (None, 12, 14, 52,   0          ['conv3d_55[0][0]']              
+ )                              8)                                                                
+                                                                                                  
+ up_sampling3d_15 (UpSampling3D  (None, 12, 14, 52,   0          ['conv3d_62[0][0]']              
+ )                              8)                                                                
+                                                                                                  
+ conv3d_56 (Conv3D)             (None, 12, 14, 52,   1156        ['up_sampling3d_12[0][0]']       
+                                4)                                                                
+                                                                                                  
+ conv3d_63 (Conv3D)             (None, 12, 14, 52,   1156        ['up_sampling3d_15[0][0]']       
+                                4)                                                                
+                                                                                                  
+ up_sampling3d_13 (UpSampling3D  (None, 12, 14, 104,  0          ['conv3d_56[0][0]']              
+ )                               4)                                                               
+                                                                                                  
+ up_sampling3d_16 (UpSampling3D  (None, 12, 14, 104,  0          ['conv3d_63[0][0]']              
+ )                               4)                                                               
+                                                                                                  
+ conv3d_57 (Conv3D)             (None, 12, 14, 104,  290         ['up_sampling3d_13[0][0]']       
+                                 2)                                                               
+                                                                                                  
+ conv3d_64 (Conv3D)             (None, 12, 14, 104,  290         ['up_sampling3d_16[0][0]']       
+                                 2)                                                               
+                                                                                                  
+ up_sampling3d_14 (UpSampling3D  (None, 12, 14, 208,  0          ['conv3d_57[0][0]']              
+ )                               2)                                                               
+                                                                                                  
+ up_sampling3d_17 (UpSampling3D  (None, 12, 14, 208,  0          ['conv3d_64[0][0]']              
+ )                               2)                                                               
+                                                                                                  
+ conv3d_58 (Conv3D)             (None, 12, 14, 208,  146         ['up_sampling3d_14[0][0]']       
+                                 2)                                                               
+                                                                                                  
+ conv3d_65 (Conv3D)             (None, 12, 14, 208,  146         ['up_sampling3d_17[0][0]']       
+                                 2)                                                               
+                                                                                                  
+ add_11 (Add)                   (None, 12, 14, 208,  0           ['conv3d_58[0][0]',              
+                                 2)                               'conv3d_65[0][0]']              
+                                                                                                  
+ conv3d_66 (Conv3D)             (None, 12, 14, 208,  73          ['add_11[0][0]']                 
+                                 1)                                                               
+                                                                                                  
+==================================================================================================
+Total params: 10,933
+Trainable params: 10,933
+Non-trainable params: 0
+__________________________________________________________________________________________________
