@@ -22,6 +22,15 @@ class Clusters:
 	'''Class wrapping methods for clusterisation.'''
 	
 	@staticmethod
+	def neighbourhood(coord, x_range, y_range, z_range):
+		x,y,z = coord
+		for i in range(-x_range, x_range+1):
+			for j in range(-y_range, y_range+1):
+				for k in range(-z_range, z_range+1):
+					if 0 <= x+i < 12 and 0 <= y+j < 14 and 0 <= z+k < 208:
+						yield (x+i, y+j, z+k)
+
+	@staticmethod
 	def getActiveZone():
 		'''Return the space in which the tracks are located.'''
 		data_loader = DataLoader("./data")
@@ -31,21 +40,36 @@ class Clusters:
 
 
 	@staticmethod
-	def isClusterInActiveZone(cluster, zone):
+	def isClusterInActiveZone(cluster):
 		'''Check whether the main part of @cluster is located in active zone @zone.'''
 		num_in_zone = 0
 		threshold = 0.8
 
 		for coord in cluster:
-			if zone[coord] != 0:	num_in_zone += 1
+			if Clusters.isInModeledZone(coord):	num_in_zone += 1
 		
 		return ( num_in_zone/len(cluster) > threshold )
 
 
 	@staticmethod
-	def isGoodCluster(cluster, zone):
+	def isGoodCluster(cluster):
 		'''Check conditions for good cluster.'''
-		return Clusters.isClusterInActiveZone(cluster, zone) and len(cluster) > 10
+		return len(cluster) > 10 and Clusters.isClusterInActiveZone(cluster) and Clusters.getClusterNeighbourCoef(cluster) <= 4
+
+	@staticmethod
+	def isInModeledZone(coord):
+		x,y,z = coord
+		return (98 <= z <=126 and 45/2*x-82 <= z) or (126 < z <= 143 and 3/17*(z-126) <= x <= 2/45*(z+82))
+
+	@staticmethod
+	def getModeledZoneMask():
+		zone = numpy.zeros((12,14,208))
+		for x in range(12):
+			for y in range(14):
+				for z in range(98,144):
+					if Clusters.isInModeledZone((x,y,z)):
+						zone[(x,y,z)] = 1
+		return zone
 
 
 	@staticmethod
@@ -54,14 +78,6 @@ class Clusters:
 		event = numpy.copy(event)
 		clusters = []
 
-		def neighbourhood(coord):
-			x,y,z = coord
-			for i in [-2,-1,0,1,2]:
-				for j in range(-2 + abs(i), 2 - abs(i) + 1):
-					for k in range(-7,8):
-						if 0 <= x+i < 12 and 0 <= y+j < 14 and 0 <= z+k < 208:
-							yield (x+i, y+j, z+k)
-
 		remaining_tracks = event.nonzero()
 		while remaining_tracks[0].size != 0:
 			cluster = [(remaining_tracks[0][0], remaining_tracks[1][0], remaining_tracks[2][0])]
@@ -69,7 +85,7 @@ class Clusters:
 			stack = [cluster[0]]
 			while stack != []:
 				coord = stack.pop()
-				for neighbour in neighbourhood(coord):
+				for neighbour in Clusters.neighbourhood(coord, 1, 1, 2):
 					if event[neighbour] != 0:
 						cluster.append(neighbour)
 						stack.append(neighbour)
@@ -77,6 +93,38 @@ class Clusters:
 			clusters.append(cluster)
 			remaining_tracks = event.nonzero()
 		return clusters
+	
+	@staticmethod
+	def getClusterTensor(cluster, event=None):
+		result = numpy.zeros((12,14,208))
+		for coord in cluster:
+			result[coord] = (1 if event == None else event[coord])
+		return result
+	
+
+	@staticmethod
+	def getClusterNeighbourCoef(cluster):
+		'''
+		Return average number of neighbours (including self) of cluster tiles.
+		'''
+		
+		tensor = Clusters.getClusterTensor(cluster)
+		coefs = []
+		for coord in cluster:
+			current = 0
+			for neighbour in Clusters.neighbourhood(coord, 1, 1, 1):
+				if tensor[neighbour] == 1:	current += 1
+			coefs.append(current)
+		return sum(coefs)/len(coefs)
+		'''
+		tensor = Clusters.getClusterTensor(cluster)
+		coef = 0
+		for coord in cluster:
+			current = 0
+			for neighbour in Clusters.neighbourhood(coord, 1, 1, 1):
+				if tensor[neighbour] == 1:	current += 1
+			coef = max(current, coef)
+		return coef'''
 
 
 class Metric:
@@ -124,7 +172,7 @@ class Metric:
 			if clusters == []:	continue
 			for cluster in clusters:
 				all_counter += 1
-				if Clusters.isGoodCluster(cluster, zone):
+				if Clusters.isGoodCluster(cluster):
 					good_counter += 1
 
 		return (good_counter / all_counter if all_counter != 0 else -1)
@@ -547,7 +595,10 @@ class Plotting:
 		elif are_data_experimental is False:	title += "Generated "
 		if event_name is not None:	title += "(" + event_name + ") "
 		title += "Data"
-		sctr = Plotting.plot3DToAxis(noise_event, ax1, title)
+		M = numpy.max(noise_event)
+		if M == 0:	M = 1
+		scaleSize = (lambda x: 100*x/M + 30) if are_data_experimental else (lambda x: 150*x + 50)
+		sctr = Plotting.plot3DToAxis(noise_event, ax1, title, scaleSize)
 
 		reconstr_event = modelAPI.evaluateSingleEvent( noise_event / (numpy.max(noise_event) if numpy.max(noise_event) != 0 else 1) )
 		classificated_event = modelAPI.classify(reconstr_event)
@@ -562,12 +613,12 @@ class Plotting:
 		return fig, ax1, ax2
 
 
-	def plot3DToAxis(event :numpy.ndarray, ax, title :str = ""):
+	def plot3DToAxis(event :numpy.ndarray, ax, title :str = "", scaleSize = lambda x: 150*x+50):
 		'''
-		Create 3D plot of @event on specified matplotlib axis @ax. 
+		Create 3D plot of @event on specified matplotlib axis @ax.
+		@scaleSize ... Function that scales scatter point size based on the corresponding value.
 		'''
 
-		def scaleSize(val):	return val*150 + 50
 		xs, ys, zs = event.nonzero()
 		vals = numpy.array([event[xs[i],ys[i],zs[i]] for i in range(len(xs))])
 		sctr = ax.scatter(xs, ys, zs, c=vals, cmap="plasma", marker="s", s=scaleSize(vals))
@@ -603,7 +654,7 @@ class Plotting:
 
 		classified = modelAPI.classify( modelAPI.evaluateBatch(data) )
 		fig, ax = matplotlib.pyplot.subplots(1)
-		counts_raw = numpy.sum(numpy.where(data>000000.1,1,0), axis=(0,1,2))
+		counts_raw = numpy.sum(numpy.where(data>0.000001,1,0), axis=(0,1,2))
 		counts_rec = numpy.sum(classified, axis=(0,1,2))
 		ax.hist(x=[i for i in range(208)], bins=69, weights=counts_raw, label="Noisy", histtype="step")
 		ax.hist(x=[i for i in range(208)], bins=69, weights=counts_rec, label="Reconstructed")
