@@ -326,12 +326,12 @@ class DataLoader:
 		self.path = path + ('/' if path[-1] != '/' else '')
 
 
-	def getEventFromName(self, name: str, noisy :bool):
+	def getEventFromName(self, name: str, noisy :bool, normalising :bool = True):
 		'''
 		Return X17 event from its @name.
 		'''
 
-		names, events = self.getX17Names(), self.getBatch(True, noisy, track_type="alltracks")
+		names, events = self.getX17Names(), self.getBatch(True, noisy, track_type="alltracks", normalising=normalising)
 		return [event for (n, event) in zip(names, events) if n == name][0]
 
 
@@ -404,7 +404,7 @@ class DataLoader:
 		return (noisy, clean)
 
 
-	def getBatch(self, experimental :bool = True, noisy :bool = True, file_id :int = 0, track_type :str = "alltracks"):
+	def getBatch(self, experimental :bool = True, noisy :bool = True, file_id :int = 0, track_type :str = "alltracks", normalising :bool = True):
 		'''
 		Get one data batch as numpy array.
 		@experimental: Whether simulated or X17 data should be used.
@@ -412,23 +412,24 @@ class DataLoader:
 		@file_id: File ID, from which the simulated batch should be loaded (useless for @experimental = True).
 		@track_type: Important only for @experimental = True. Either "goodtracks" (only "data/x17/goodtracks/"), "othertracks" (only "data/x17/othertracks"), "alltracks" (both "data/x17/goodtracks"
 		and "data/x17/othertracks") or "midtracks" (like "alltracks", but filtered those that do not contain a track).
+		@normalising: Whether X17 data should be mapped to [0,1] first (default True, good for evaluating by models, but energy information is lost).
 		'''
 		
 		if experimental:
 			if track_type == "goodtracks":
 				x17_data = []
 				for _, event in self.loadX17Data("goodtracks", noisy):
-					x17_data.append( normalise(event) )
+					x17_data.append( normalise(event) if normalising else event )
 				return numpy.array(x17_data)
 			
 			elif track_type == "othertracks":
 				x17_data = []
 				for _, event in self.loadX17Data("othertracks", noisy):
-					x17_data.append( normalise(event) )
+					x17_data.append( normalise(event) if normalising else event )
 				return numpy.array(x17_data)
 			
 			elif track_type == "alltracks":
-				return numpy.concatenate( [self.getBatch(True, noisy, track_type="goodtracks"), self.getBatch(True, noisy, track_type="othertracks")], axis=0 )
+				return numpy.concatenate( [self.getBatch(True, noisy, track_type="goodtracks", normalising=normalising), self.getBatch(True, noisy, track_type="othertracks", normalising=normalising)], axis=0 )
 			
 			elif track_type == "midtracks":
 				good_enough_indices = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 
@@ -438,7 +439,7 @@ class DataLoader:
 										324, 326, 329, 337, 344, 345, 354, 357, 367, 369, 371, 381, 383, 388, 393, 398, 402, 404, 405, 411, 418, 422, 423, 
 										434, 436, 441, 456, 461, 463, 465, 466, 468, 484, 488, 492, 501, 511, 516, 517, 519, 521, 524, 525, 526, 527, 531, 
 										537, 538, 542, 552, 561, 565, 567, 572, 581, 592, 596, 598, 600, 601, 607, 612, 614, 617, 625, 628, 633, 638, 639]
-				return self.getBatch(True, noisy, track_type="alltracks")[good_enough_indices]
+				return self.getBatch(True, noisy, track_type="alltracks", normalising=normalising)[good_enough_indices]
 			
 			else:
 				raise ValueError
