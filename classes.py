@@ -326,6 +326,8 @@ class DataLoader:
 		self.name_index_dict = {}
 		self.fillNameIndexDictionary()
 
+		self.existing_experimental_datasets = {}
+
 	def fillNameIndexDictionary(self):
 		names = self.getX17Names()
 		for i in range(len(names)):
@@ -412,47 +414,52 @@ class DataLoader:
 		return (noisy, clean)
 
 
+	def datasetExists(self, noisy :bool, track_type :str, normalising :bool):
+		return (noisy, track_type, normalising) in self.existing_experimental_datasets
+	
+	def getDatasetFromDictionary(self, noisy :bool, track_type :str, normalising :bool):
+		return self.existing_experimental_datasets[(noisy, track_type, normalising)]
+
+	def addDatasetToDictionary(self, dataset :numpy.array, noisy :bool, track_type :str, normalising :bool):
+		self.existing_experimental_datasets[(noisy, track_type, normalising)] = dataset
+
 	def getBatch(self, experimental :bool = True, noisy :bool = True, file_id :int = 0, track_type :str = "alltracks", normalising :bool = True):
 		'''
 		Get one data batch as numpy array.
 		@experimental: Whether simulated or X17 data should be used.
 		@noisy: Whether noisy or clean data should be used.
 		@file_id: File ID, from which the simulated batch should be loaded (useless for @experimental = True).
-		@track_type: Important only for @experimental = True. Either "goodtracks" (only "data/x17/goodtracks/"), "othertracks" (only "data/x17/othertracks"), "alltracks" (both "data/x17/goodtracks"
-		and "data/x17/othertracks") or "midtracks" (like "alltracks", but filtered those that do not contain a track).
+		@track_type: Important only for @experimental = True. Either "goodtracks" (only "data/x17/goodtracks/"), "othertracks" (only "data/x17/othertracks") or "alltracks" (both "data/x17/goodtracks"
+		and "data/x17/othertracks").
 		@normalising: Whether X17 data should be mapped to [0,1] first (default True, good for evaluating by models, but energy information is lost).
 		'''
 		
-		if experimental:
-			if track_type == "goodtracks":
-				x17_data = []
-				for _, event in self.loadX17Data("goodtracks", noisy):
-					x17_data.append( normalise(event) if normalising else event )
-				return numpy.array(x17_data)
-			
-			elif track_type == "othertracks":
-				x17_data = []
-				for _, event in self.loadX17Data("othertracks", noisy):
-					x17_data.append( normalise(event) if normalising else event )
-				return numpy.array(x17_data)
-			
-			elif track_type == "alltracks":
-				return numpy.concatenate( [self.getBatch(True, noisy, track_type="goodtracks", normalising=normalising), self.getBatch(True, noisy, track_type="othertracks", normalising=normalising)], axis=0 )
-			
-			elif track_type == "midtracks":
-				good_enough_indices = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 
-										31, 32, 33, 35, 37, 38, 39, 40, 42, 43, 47, 56, 59, 61, 62, 65, 74, 78, 79, 82, 90, 91, 92, 102, 103, 104, 105, 
-										106, 112, 123, 133, 138, 149, 155, 160, 162, 163, 172, 175, 188, 189, 193, 199, 209, 210, 216, 217, 227, 228, 230, 
-										234, 235, 239, 240, 241, 244, 245, 246, 253, 262, 266, 270, 283, 285, 289, 295, 303, 308, 309, 314, 315, 317, 320, 
-										324, 326, 329, 337, 344, 345, 354, 357, 367, 369, 371, 381, 383, 388, 393, 398, 402, 404, 405, 411, 418, 422, 423, 
-										434, 436, 441, 456, 461, 463, 465, 466, 468, 484, 488, 492, 501, 511, 516, 517, 519, 521, 524, 525, 526, 527, 531, 
-										537, 538, 542, 552, 561, 565, 567, 572, 581, 592, 596, 598, 600, 601, 607, 612, 614, 617, 625, 628, 633, 638, 639]
-				return self.getBatch(True, noisy, track_type="alltracks", normalising=normalising)[good_enough_indices]
-			
-			else:
-				raise ValueError
-		else:
+		if not experimental:
 			return numpy.load(self.path + "simulated/" + ("noisy/" if noisy else "clean/") + str(file_id) + ".npy")
+		
+		if self.datasetExists(noisy, track_type, normalising):
+			return self.getDatasetFromDictionary(noisy, track_type, normalising)
+	
+		if track_type == "goodtracks":
+			x17_data = []
+			for _, event in self.loadX17Data("goodtracks", noisy):
+				x17_data.append( normalise(event) if normalising else event )
+			dataset = numpy.array(x17_data)
+			self.addDatasetToDictionary(dataset, noisy, track_type, normalising)
+			return dataset
+		elif track_type == "othertracks":
+			x17_data = []
+			for _, event in self.loadX17Data("othertracks", noisy):
+				x17_data.append( normalise(event) if normalising else event )
+			dataset = numpy.array(x17_data)
+			self.addDatasetToDictionary(dataset, noisy, track_type, normalising)
+			return dataset
+		elif track_type == "alltracks":
+			dataset = numpy.concatenate( [self.getBatch(True, noisy, track_type="goodtracks", normalising=normalising), self.getBatch(True, noisy, track_type="othertracks", normalising=normalising)], axis=0 )
+			self.addDatasetToDictionary(dataset, noisy, track_type, normalising)
+			return dataset
+		else:
+			raise ValueError
 	
 	def getX17Names(self):
 		'''
