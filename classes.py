@@ -24,11 +24,13 @@ class Cluster:
 	active_zone_threshold = 0.8
 	min_length = 10
 	max_neighbour_coef = 4
+	min_energy = 1000
 
 	def __init__(self, coords):
 		self.coords = coords
 		self.length = len(coords)
 		self.neighbour_coef = self.getNeighbourCoefficient()
+		self.tests = {}
 
 	@staticmethod
 	def clusterise(event):
@@ -80,9 +82,23 @@ class Cluster:
 		
 		return ( num_in_zone/self.length > self.active_zone_threshold )
 	
-	def isGood(self):
+	def runTests(self):
 		'''Check conditions for good cluster.'''
-		return self.length > self.min_length and self.testActiveZone() and self.neighbour_coef <= self.max_neighbour_coef
+
+		try:	self.energy
+		except:	
+			print("WARNING [Cluster.runTests]: Cluster.energy not set yet, aborting.")
+			return
+
+		self.tests["length"] = self.length > self.min_length 
+		self.tests["zone"] = self.testActiveZone()
+		self.tests["neighbours"] = self.neighbour_coef <= self.max_neighbour_coef
+		self.tests["energy"] = self.energy > self.min_energy
+	
+	def getPassedTestsNum(self):
+		if len(self.tests) != 4:
+			print("WARNING [Cluster.getPassedTestsNum]: Some tests were not run yet.")
+		return sum(self.tests[key] for key in self.tests)
 
 	def getNeighbourCoefficient(self):
 		'''
@@ -120,11 +136,10 @@ class Cluster:
 			result[coord] = (1 if event is None else event[coord])
 		return result
 	
-	def getEnergy(self, event):
-		energy = 0
+	def setEnergy(self, event):
+		self.energy = 0
 		for coord in self.coords:
-			energy += event[coord]
-		return energy	
+			self.energy += event[coord]	
 
 
 class Metric:
