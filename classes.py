@@ -18,63 +18,21 @@ def normalise(event :numpy.ndarray):
 	return event / M
 
 
-class Clusters:
-	'''Class wrapping methods for clusterisation.'''
-	
-	@staticmethod
-	def neighbourhood(coord, x_range, y_range, z_range):
-		x,y,z = coord
-		for i in range(-x_range, x_range+1):
-			for j in range(-y_range, y_range+1):
-				for k in range(-z_range, z_range+1):
-					if 0 <= x+i < 12 and 0 <= y+j < 14 and 0 <= z+k < 208:
-						yield (x+i, y+j, z+k)
+class Cluster:
+	'''Class for clusters and methods for clusterisation.'''
 
-	@staticmethod
-	def getActiveZone():
-		'''Return the space in which the tracks are located.'''
-		data_loader = DataLoader("./data")
-		clean = data_loader.getBatch(True, False, track_type="alltracks")
-		zone = numpy.sum(clean, 0)
-		return numpy.where(zone > 0.01, 1, 0)
+	active_zone_threshold = 0.8
+	min_length = 10
+	max_neighbour_coef = 4
 
-
-	@staticmethod
-	def isClusterInActiveZone(cluster):
-		'''Check whether the main part of @cluster is located in active zone @zone.'''
-		num_in_zone = 0
-		threshold = 0.8
-
-		for coord in cluster:
-			if Clusters.isInModeledZone(coord):	num_in_zone += 1
-		
-		return ( num_in_zone/len(cluster) > threshold )
-
-
-	@staticmethod
-	def isGoodCluster(cluster):
-		'''Check conditions for good cluster.'''
-		return len(cluster) > 10 and Clusters.isClusterInActiveZone(cluster) and Clusters.getClusterNeighbourCoef(cluster) <= 4
-
-	@staticmethod
-	def isInModeledZone(coord):
-		x,y,z = coord
-		return (98 <= z <=126 and 45/2*x-82 <= z) or (126 < z <= 143 and 3/17*(z-126) <= x <= 2/45*(z+82))
-
-	@staticmethod
-	def getModeledZoneMask():
-		zone = numpy.zeros((12,14,208))
-		for x in range(12):
-			for y in range(14):
-				for z in range(98,144):
-					if Clusters.isInModeledZone((x,y,z)):
-						zone[(x,y,z)] = 1
-		return zone
-
+	def __init__(self, coords):
+		self.coords = coords
+		self.length = len(coords)
+		self.neighbour_coef = self.getNeighbourCoefficient()
 
 	@staticmethod
 	def clusterise(event):
-		'''Create list of clusters (represented by lists of coordinates) from input @event.'''
+		'''Create list of cClusters from input @event.'''
 		event = numpy.copy(event)
 		clusters = []
 
@@ -85,46 +43,88 @@ class Clusters:
 			stack = [cluster[0]]
 			while stack != []:
 				coord = stack.pop()
-				for neighbour in Clusters.neighbourhood(coord, 1, 1, 2):
+				for neighbour in Cluster.neighbourhood(coord, 1, 1, 2):
 					if event[neighbour] != 0:
 						cluster.append(neighbour)
 						stack.append(neighbour)
 						event[neighbour] = 0
-			clusters.append(cluster)
+			clusters.append( Cluster(cluster) )
 			remaining_tracks = event.nonzero()
 		return clusters
-	
-	@staticmethod
-	def getClusterTensor(cluster, event=None):
-		result = numpy.zeros((12,14,208))
-		for coord in cluster:
-			result[coord] = (1 if event == None else event[coord])
-		return result
-	
+
 
 	@staticmethod
-	def getClusterNeighbourCoef(cluster):
+	def neighbourhood(coord, x_range, y_range, z_range):
+		x,y,z = coord
+		for i in range(-x_range, x_range+1):
+			for j in range(-y_range, y_range+1):
+				for k in range(-z_range, z_range+1):
+					if 0 <= x+i < 12 and 0 <= y+j < 14 and 0 <= z+k < 208:
+						yield (x+i, y+j, z+k)
+
+	#OBSOLETE
+	@staticmethod
+	def getActiveZone():
+		'''Return the space in which the tracks are located.'''
+		data_loader = DataLoader("./data")
+		clean = data_loader.getBatch(True, False, track_type="alltracks")
+		zone = numpy.sum(clean, 0)
+		return numpy.where(zone > 0.01, 1, 0)
+	
+	def testActiveZone(self):
+		'''Check whether the main part of @cluster is located in active zone @zone.'''
+		num_in_zone = 0
+
+		for coord in self.coords:
+			if Cluster.isInModeledZone(coord):	num_in_zone += 1
+		
+		return ( num_in_zone/self.length > self.active_zone_threshold )
+	
+	def isGood(self):
+		'''Check conditions for good cluster.'''
+		return self.length > self.min_length and self.testActiveZone() and self.neighbour_coef <= self.max_neighbour_coef
+
+	def getNeighbourCoefficient(self):
 		'''
 		Return average number of neighbours (including self) of cluster tiles.
 		'''
 		
-		tensor = Clusters.getClusterTensor(cluster)
+		tensor = self.getTensor()
 		coefs = []
-		for coord in cluster:
+		for coord in self.coords:
 			current = 0
-			for neighbour in Clusters.neighbourhood(coord, 1, 1, 1):
+			for neighbour in Cluster.neighbourhood(coord, 1, 1, 1):
 				if tensor[neighbour] == 1:	current += 1
 			coefs.append(current)
 		return sum(coefs)/len(coefs)
-		'''
-		tensor = Clusters.getClusterTensor(cluster)
-		coef = 0
-		for coord in cluster:
-			current = 0
-			for neighbour in Clusters.neighbourhood(coord, 1, 1, 1):
-				if tensor[neighbour] == 1:	current += 1
-			coef = max(current, coef)
-		return coef'''
+
+	@staticmethod
+	def getModeledZoneMask():
+		zone = numpy.zeros((12,14,208))
+		for x in range(12):
+			for y in range(14):
+				for z in range(98,144):
+					if Cluster.isInModeledZone((x,y,z)):
+						zone[(x,y,z)] = 1
+		return zone
+
+	@staticmethod
+	def isInModeledZone(coord):
+		x,y,z = coord
+		return (98 <= z <=126 and 45/2*x-82 <= z) or (126 < z <= 143 and 3/17*(z-126) <= x <= 2/45*(z+82))
+
+	#TODO OPTIMISE
+	def getTensor(self, event=None):
+		result = numpy.zeros((12,14,208))
+		for coord in self.coords:
+			result[coord] = (1 if event is None else event[coord])
+		return result
+	
+	def getEnergy(self, event):
+		energy = 0
+		for coord in self.coords:
+			energy += event[coord]
+		return energy	
 
 
 class Metric:
@@ -164,15 +164,14 @@ class Metric:
 		Return the ratio of good clusters in @data. If no cluster is found in @data, return -1.
 		'''
 
-		zone = Clusters.getActiveZone()
 		good_counter = 0
 		all_counter = 0
 		for event in data:
-			clusters = Clusters.clusterise(event)
+			clusters = Cluster.clusterise(event)
 			if clusters == []:	continue
 			for cluster in clusters:
 				all_counter += 1
-				if Clusters.isGoodCluster(cluster):
+				if cluster.isGood():
 					good_counter += 1
 
 		return (good_counter / all_counter if all_counter != 0 else -1)
@@ -324,15 +323,24 @@ class DataLoader:
 		'''
 
 		self.path = path + ('/' if path[-1] != '/' else '')
+		self.name_index_dict = {}
+		self.fillNameIndexDictionary()
 
+	def fillNameIndexDictionary(self):
+		names = self.getX17Names()
+		for i in range(len(names)):
+			self.name_index_dict[names[i]] = i
 
 	def getEventFromName(self, name: str, noisy :bool, normalising :bool = True):
 		'''
 		Return X17 event from its @name.
 		'''
 
-		names, events = self.getX17Names(), self.getBatch(True, noisy, track_type="alltracks", normalising=normalising)
-		return [event for (n, event) in zip(names, events) if n == name][0]
+		return self.getBatch(True, noisy, track_type="alltracks", normalising=normalising)[ self.name_index_dict[name] ]
+		#names, events = self.getX17Names(), self.getBatch(True, noisy, track_type="alltracks", normalising=normalising)
+		#return [event for (n, event) in zip(names, events) if n == name][0]
+
+
 
 
 	def loadX17Data(self, track_type :str, noisy :bool):
