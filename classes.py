@@ -172,7 +172,7 @@ class Metric:
 		if num_all_noise == 0:	return None
 		return num_noise_tiles / num_all_noise
 
-
+	#NEEDS TO FIX
 	@staticmethod
 	def getRatioOfGoodClusters(data):
 		'''
@@ -190,6 +190,23 @@ class Metric:
 					good_counter += 1
 
 		return (good_counter / all_counter if all_counter != 0 else -1)
+
+	def getNumberOfGoodEvents(data, energy_data):
+		'''
+		Return the number of events in @data which contain only clusters that pass all the tests.
+		'''
+
+		good_counter = 0
+		for i in range(data.shape[0]):
+			clusters = Cluster.clusterise(data[i])
+			if clusters == []:	continue
+			for cluster in clusters:
+				cluster.setEnergy(energy_data[i])
+				cluster.runTests()
+				if cluster.getPassedTestsNum() != 4:	break
+			else:
+				good_counter += 1
+		return good_counter
 
 
 
@@ -343,6 +360,66 @@ class DataLoader:
 
 		self.existing_experimental_datasets = {}
 
+	def dumpData(self, data, names, dir_name = "dump/"):
+		'''
+		Export @data to (DataLoader.path + @dir_name). Each @data[i] event is saved in its own { @names[i] }.txt file, where each line corresponds to "x, y, z, E" nonzero energy element of the event.
+		'''
+
+		if dir_name[-1] != "/":	dir_name += "/"
+		path = self.path + dir_name
+		if not os.path.isdir(path):
+			os.makedirs(path)
+		else:
+			print("WARNING [DataLoader.dumpData]: Dump directory already exists, aborting")
+			return
+		
+		for event, name in zip(data, names):
+			dump_str = ""
+			xs, ys, zs = numpy.nonzero(event)
+			for i in range(xs.shape[0]):
+				x, y, z = xs[i], ys[i], zs[i]
+				E = event[x,y,z]
+				dump_str += str(x) + ", " + str(y) + ", " + str(z) + ", " + str(int(E)) + "\n"
+			dump_str = dump_str[:-1]
+			f = open(path + name + ".txt", "w")
+			f.write(dump_str)
+			f.close()
+
+
+	def importData(self, dir_name = "dump/"):
+		'''
+		Import data previously exported by DataLoader._dumpData_ to a directory (DataLoader.path + @dir_name).  
+		'''
+
+		def parseLine(line :str):
+			x = line[:line.index(",")]
+			x = int(x)
+			line = line[line.index(",")+1:]
+			y = line[:line.index(",")]
+			y = int(y)
+			line = line[line.index(",")+1:]
+			z = line[:line.index(",")]
+			z = int(z)
+			line = line[line.index(",")+1:]
+			E = int(line)
+			return (x, y, z, E)
+		
+		if dir_name[-1] != "/":	dir_name += "/"
+		path = self.path + dir_name
+		data = numpy.zeros( (len(os.listdir(path)), 12, 14, 208) )
+		names = []
+		i = 0
+		for name in os.listdir(path):
+			f = open(path + name, "r")
+			for line in f.readlines():
+				x, y, z, E = parseLine(line)
+				data[i,x,y,z] = E
+			f.close()
+			names.append(name[:-4])
+			i += 1
+		return (data, names)
+
+
 	def fillNameIndexDictionary(self):
 		names = self.getX17Names()
 		for i in range(len(names)):
@@ -476,14 +553,16 @@ class DataLoader:
 		else:
 			raise ValueError
 	
-	def getX17Names(self):
+	def getX17Names(self, track_type="alltracks"):
 		'''
 		Return X17 track names in the same order as alltracks (i.e. DataLoader.getBatch(experimental=True, track_type='alltracks')). 
 		'''
 
 		names = []
-		for (name, _) in self.loadX17Data("goodtracks", False):	names.append(name)
-		for (name, _) in self.loadX17Data("othertracks", False):	names.append(name)
+		if track_type in ["goodtracks", "alltracks"]:	
+			for (name, _) in self.loadX17Data("goodtracks", False):	names.append(name)
+		if track_type in ["alltracks", "othertracks"]:
+			for (name, _) in self.loadX17Data("othertracks", False):	names.append(name)
 		return names
 
 
