@@ -21,7 +21,7 @@ def normalise(event :numpy.ndarray):
 class Cluster:
 	'''Class for clusters and methods for clusterisation.'''
 
-	active_zone_threshold = 0.8
+	active_zone_threshold = 0.7
 	min_length = 10
 	max_neighbour_coef = 4
 	min_energy = 1000
@@ -29,17 +29,38 @@ class Cluster:
 	def __init__(self, coords):
 		self.coords = coords
 		self.length = len(coords)
+		self.corners = []
 		self.neighbour_coef = self.getNeighbourCoefficient()
+		self.findCorners()
 		self.tests = {}
+
+	def findCorners(self):
+
+		def coordsFormClique(coords):
+			n = len(coords)
+			for i in range(n):
+				for j in range(i+1,n):
+					u, v = coords[i], coords[j]
+					if max( abs(u[k]-v[k]) for k in [0,1,2] ) > 1:	return False
+			return True
+
+		cluster_tensor = self.getTensor()
+		for coord in self.coords:
+			neighbours = []
+			for neighbour in self.neighbourhood(coord, 1, 1, 1):
+				if cluster_tensor[neighbour] != 0:	neighbours.append(neighbour)
+			if coordsFormClique(neighbours):	self.corners.append(coord)
+
 
 	@staticmethod
 	def clusterise(event):
-		'''Create list of cClusters from input @event.'''
+		'''Create list of Clusters from input @event.'''
 		event = numpy.copy(event)
 		clusters = []
 
 		remaining_tracks = event.nonzero()
 		while remaining_tracks[0].size != 0:
+			corners = []	#all tiles where the clusterisation stops (DFS leaves)
 			cluster = [(remaining_tracks[0][0], remaining_tracks[1][0], remaining_tracks[2][0])]
 			event[cluster[0]] = 0
 			stack = [cluster[0]]
