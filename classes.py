@@ -22,9 +22,9 @@ class Cluster:
 	'''Class for clusters and methods for clusterisation.'''
 
 	active_zone_threshold = 0.7
+	max_neighbour_coef = 5
+	min_energy_density = 80
 	min_length = 10
-	max_neighbour_coef = 4
-	min_energy = 1000
 
 	def __init__(self, coords):
 		self.coords = coords
@@ -33,6 +33,13 @@ class Cluster:
 		self.neighbour_coef = self.getNeighbourCoefficient()
 		self.findCorners()
 		self.tests = {}
+
+	def __str__(self):
+		result = "L = " + str(self.length)
+		result += "\nneigh_coef = " + str(self.neighbour_coef)
+		result += "\nE_density = " + str(self.energy_density)
+		result += "\n#Passed tests = " + str(self.getPassedTestsNum())
+		return result
 
 	def findCorners(self):
 
@@ -111,10 +118,10 @@ class Cluster:
 			print("WARNING [Cluster.runTests]: Cluster.energy not set yet, aborting.")
 			return
 
-		self.tests["length"] = self.length > self.min_length 
+		self.tests["length"] = self.length > self.min_length
 		self.tests["zone"] = self.testActiveZone()
 		self.tests["neighbours"] = self.neighbour_coef <= self.max_neighbour_coef
-		self.tests["energy"] = self.energy > self.min_energy
+		self.tests["energy_density"] = self.energy_density > self.min_energy_density
 	
 	def getPassedTestsNum(self):
 		if len(self.tests) != 4:
@@ -161,6 +168,7 @@ class Cluster:
 		self.energy = 0
 		for coord in self.coords:
 			self.energy += event[coord]	
+		self.energy_density = self.energy / self.length
 
 
 class Metric:
