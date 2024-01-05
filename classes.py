@@ -655,44 +655,25 @@ class Plotting:
 	
 
 	@staticmethod
-	def plotEventOneAxis(modelAPI :ModelWrapper, noise_data :numpy.ndarray, axis :int, are_data_experimental :bool = None, event_name :str = None):
+	def getPlotEventOneAxis(noise_event :numpy.ndarray, nonNN_event :numpy.ndarray, NN_event :numpy.ndarray, axis :int, event_name :str = None):
 		'''
-		Plot projection of @noise_data, its @modelAPI reconstruction and classification in specified @axis. 
+		Plot projection of @noise_data, its NN and non-NN reconstruction (@NN_event and @nonNN_event, respectively) in specified @axis. 
 		'''
 
 		x_labels = ['z', 'z', 'y']
 		y_labels = ['y', 'x', 'x']
-		
-		reconstructed = modelAPI.evaluateSingleEvent(noise_data)
 
-		if modelAPI.threshold is not None:
-			classified = modelAPI.classify(reconstructed)
-			fig, ax = matplotlib.pyplot.subplots(3)
-		else:
-			fig, ax = matplotlib.pyplot.subplots(2)
+		fig, ax = matplotlib.pyplot.subplots(3)
 		
-		ax[0].set_title("Noisy")
-		ax[0].imshow(numpy.sum(noise_data, axis=axis), cmap="gray")
-		ax[0].set_xlabel(x_labels[axis])
-		ax[0].set_ylabel(y_labels[axis])
-		ax[1].set_title("Raw Reconstruction")
-		ax[1].imshow(numpy.sum(reconstructed, axis=axis), cmap="gray")
-		ax[1].set_xlabel(x_labels[axis])
-		ax[1].set_ylabel(y_labels[axis])
-
-		if modelAPI.threshold is not None:
-			ax[2].set_title("After Threshold")
-			ax[2].imshow(numpy.sum(classified, axis=axis), cmap="gray")
-			ax[2].set_xlabel(x_labels[axis])
-			ax[2].set_ylabel(y_labels[axis])
-			
-		title = "Reconstruction of "
-		if are_data_experimental:	title += "Experimental "
-		elif are_data_experimental is False:	title += "Generated "
-		title += "Data "
-		if event_name is not None:	title += "(" + event_name + ") "
-		title += "by Model " + modelAPI.name
-		fig.suptitle(title)
+		ax[0].set_title("Noisy " + event_name)
+		ax[0].imshow(numpy.sum(noise_event, axis=axis), cmap="gray")
+		ax[1].set_title("non-NN Reconstruction")
+		ax[1].imshow(numpy.sum(nonNN_event, axis=axis), cmap="gray")
+		ax[2].set_title("NN Reconstruction")
+		ax[2].imshow(numpy.sum(NN_event, axis=axis), cmap="gray")
+		for i in range(3):
+			ax[i].set_xlabel(x_labels[axis])
+			ax[i].set_ylabel(y_labels[axis])
 
 
 	@staticmethod
