@@ -7,6 +7,7 @@ import keras.utils
 import copy
 import os
 
+VERBOSE = False
 
 def normalise(event :numpy.ndarray):
 	'''
@@ -18,13 +19,40 @@ def normalise(event :numpy.ndarray):
 	return event / M
 
 
+class Vector:
+	@staticmethod
+	def add(v, w):
+		if len(v) != len(w):
+			print("WARNING [Vector.add]: Non-compatible vector shapes")
+			return None
+		return tuple(v[i] + w[i] for i in range(len(v)))
+
+	@staticmethod
+	def multiply(alpha, v):
+		return tuple(alpha*v[i] for i in range(len(v)))
+
+	@staticmethod
+	def linComb(alpha, beta, v, w):
+		return tuple(alpha*v[i] + beta*w[i] for i in range(len(v)))
+
+	@staticmethod
+	def dotProduct(v, w):
+		if len(v) != len(w):
+			print("WARNING [Vector.dotProduct]: Non-compatible vector shapes")
+			return None
+		return sum(v[i] * w[i] for i in range(len(v)))
+
+	@staticmethod
+	def norm(v):
+		return numpy.sqrt( Vector.dotProduct(v, v) )
+
 class Cluster:
 	'''Class for clusters and methods for clusterisation.'''
 
 	active_zone_threshold = 0.7
 	max_neighbour_coef = 5
 	min_energy_density = 80
-	min_length = 10
+	min_length = 5
 
 	def __init__(self, coords):
 		self.coords = coords
@@ -42,7 +70,6 @@ class Cluster:
 		return result
 
 	def findCorners(self):
-
 		def coordsFormClique(coords):
 			n = len(coords)
 			for i in range(n):
@@ -57,6 +84,22 @@ class Cluster:
 			for neighbour in self.neighbourhood(coord, 1, 1, 1):
 				if cluster_tensor[neighbour] != 0:	neighbours.append(neighbour)
 			if coordsFormClique(neighbours):	self.corners.append(coord)
+	
+
+	def linify(self):
+		if len(self.corners) < 2:
+			if VERBOSE:	print("WARNING [Cluster.linify]: Less that two corner tiles found, skipping")
+			return
+		corner_left, corner_right = self.corners[0], self.corners[0]
+		for c in self.corners:
+			if c[2] < corner_left[2]:	corner_left = c
+			if c[2] > corner_right[2]:	corner_right = c
+
+		sum_direction = (0,0,0)
+		for coord in self.coords:
+			sum_direction = Vector.add(sum_direction, Vector.linComb(1, -1, coord, corner_left))
+		sum_direction = sum_direction / Vector.norm(sum_direction)
+		return( corner_left, Vector.linComb(1, corner_right[2] - corner_left[2], corner_left, sum_direction) )
 
 
 	@staticmethod
@@ -674,7 +717,6 @@ class Plotting:
 		for i in range(3):
 			ax[i].set_xlabel(x_labels[axis])
 			ax[i].set_ylabel(y_labels[axis])
-
 
 	@staticmethod
 	def plotRandomData(modelAPI :ModelWrapper, noise_data :numpy.ndarray, are_data_experimental :bool = None, axes :list = [0,1,2], use_log :bool = False):
