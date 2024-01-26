@@ -775,10 +775,11 @@ class Plotting:
 		return fig, ax1, ax2
 
 
-	def plot3DToAxis(event :numpy.ndarray, ax, title :str = "", scaleSize = lambda x: 150*x+50):
+	def plot3DToAxis(event :numpy.ndarray, ax, title :str = "", scaleSize = lambda x: 150*x+50, z_cut = (0,200)):
 		'''
 		Create 3D plot of @event on specified matplotlib axis @ax.
 		@scaleSize ... Function that scales scatter point size based on the corresponding value.
+		@z_cut ... (z_low, z_max) limits of z axis.
 		'''
 
 		xs, ys, zs = event.nonzero()
@@ -788,7 +789,7 @@ class Plotting:
 		ax.set_xlabel("$x$")
 		ax.set_ylim(0, 13)
 		ax.set_ylabel("$y$")
-		ax.set_zlim(0, 200)
+		ax.set_zlim(*z_cut)
 		ax.set_zlabel("$z$")
 		ax.set_title(title)
 		ax.set_box_aspect((12, 14, 50))
