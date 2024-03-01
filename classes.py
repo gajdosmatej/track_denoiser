@@ -45,12 +45,17 @@ class Vector:
 	@staticmethod
 	def norm(v):
 		return numpy.sqrt( Vector.dotProduct(v, v) )
+	
+	@staticmethod
+	def normalise(v):
+		if v == (0,0,0):	return v
+		return Vector.multiply( 1/Vector.norm(v), v)
 
 class Cluster:
 	'''Class for clusters and methods for clusterisation.'''
 
 	active_zone_threshold = 0.7
-	max_neighbour_coef = 5
+	max_neighbour_coef = 4
 	min_energy_density = 80
 	min_length = 5
 
@@ -68,6 +73,10 @@ class Cluster:
 		result += "\nE_density = " + str(self.energy_density)
 		result += "\n#Passed tests = " + str(self.getPassedTestsNum())
 		return result
+	
+	@staticmethod
+	def union(c, d):
+		return Cluster(c.coords + d.coords)
 
 	def findCorners(self):
 		def coordsFormClique(coords):
@@ -95,15 +104,19 @@ class Cluster:
 			if c[2] < corner_left[2]:	corner_left = c
 			if c[2] > corner_right[2]:	corner_right = c
 
-		sum_direction = (0,0,0)
+		return (corner_left, corner_right)
+
+		'''sum_direction = (0,0,0)
 		for coord in self.coords:
-			sum_direction = Vector.add(sum_direction, Vector.linComb(1, -1, coord, corner_left))
-		sum_direction = sum_direction / Vector.norm(sum_direction)
-		return( corner_left, Vector.linComb(1, corner_right[2] - corner_left[2], corner_left, sum_direction) )
+			component_direction = Vector.linComb(1, -1, coord, corner_left)
+			component_direction = Vector.normalise(component_direction)
+			sum_direction = Vector.add(sum_direction, component_direction)
+		sum_direction = Vector.multiply(1/abs(sum_direction[2]), sum_direction)
+		return( corner_left, Vector.linComb(1, corner_right[2] - corner_left[2], corner_left, sum_direction) )'''
 
 
 	@staticmethod
-	def clusterise(event):
+	def clusterise(event :numpy.ndarray) -> list['Cluster']:
 		'''Create list of Clusters from input @event.'''
 		event = numpy.copy(event)
 		clusters = []
@@ -170,12 +183,18 @@ class Cluster:
 		if len(self.tests) != 4:
 			print("WARNING [Cluster.getPassedTestsNum]: Some tests were not run yet.")
 		return sum(self.tests[key] for key in self.tests)
+	
+	def isGood(self):
+		if len(self.tests) != 4:
+			print("WARNING [Cluster.getPassedTestsNum]: Some tests were not run yet.")
+		return all(self.tests[key] for key in self.tests)
 
 	def getNeighbourCoefficient(self):
 		'''
 		Return average number of neighbours (including self) of cluster tiles.
 		'''
 		
+		if self.coords == []:	return None
 		tensor = self.getTensor()
 		coefs = []
 		for coord in self.coords:
@@ -212,6 +231,94 @@ class Cluster:
 		for coord in self.coords:
 			self.energy += event[coord]	
 		self.energy_density = self.energy / self.length
+
+	@staticmethod
+	def getGoodFromDataset(dataset, energy_dataset):
+		good_dataset = numpy.zeros(dataset.shape)
+		for i in range(dataset.shape[0]):
+			clusters = Cluster.clusterise(dataset[i])
+			for cluster in clusters:
+				cluster.setEnergy(energy_dataset[i])
+				cluster.runTests()
+				if cluster.isGood():	good_dataset[i] += cluster.getTensor()
+		return good_dataset
+
+
+	@staticmethod
+	def crossconnectClusters(clusters1 :list['Cluster'], clusters2 :list['Cluster']) -> tuple[list[int], list[int]]:
+		'''
+		Returns a tuple (@subsets1of2, @subsets2of1) -- @subsets1of2 has the same length as @clusters1, 
+		an i-th item contains the index of cluster from @clusters2 which is an essential superset of @clusters1[i]. If such a superset does not exist, @subsets1of2[i] = None.
+		'''
+		
+		essential_subset_threshold = 0.7	#minimal |a & b| / |a| so that a is essential subset of b 
+		n1, n2 = len(clusters1), len(clusters2)
+		subsets1of2 = [None]*n1
+		subsets2of1 = [None]*n2
+
+		for i in range(n1):	#fix one cluster in @clusters1
+			a = clusters1[i]
+			for j in range(n2):	#go through @clusters2 and compare the relationship of each with @a
+				b = clusters2[j]
+				intersect_size = sum(1 for coord in a.coords if coord in b.coords)
+				if intersect_size / len(a.coords) >= essential_subset_threshold:	# @a is essential subset of @b
+					subsets1of2[i] = j
+				if intersect_size / len(b.coords) >= essential_subset_threshold:
+					subsets2of1[j] = i
+		return (subsets1of2, subsets2of1)
+
+
+	@staticmethod
+	def defragment(clusters1 :list['Cluster'], clusters2 :list['Cluster']) -> tuple[list['Cluster'], list['Cluster'], list[bool], list[bool]]:
+		'''
+		Returns (@defragmented_clusters1, @deframented_clusters2, @are_original1, @are_original2), 
+		where the original clusters with the same essential superset are connected together in the first two lists. In the third and fourth lists, 
+		information whether cluster was formed from multiple clusters is stored.
+		'''
+
+		n1, n2 = len(clusters1), len(clusters2)
+		subsets1of2, subsets2of1 = Cluster.crossconnectClusters(clusters1, clusters2)
+		defragmented_clusters1, defragmented_clusters2 = [], []
+		are_original1, are_original2 = [], []
+
+		for i in range(n1):	#fix one cluster in @clusters1
+			if subsets1of2[i] is None:	#add to @defragmented_clusters1 the clusters which do not have essential superset
+				defragmented_clusters1.append(clusters1[i])
+				are_original1.append(True)
+
+			new_cluster = None
+			is_original = True
+			for j in range(n2):	#connect all @clusters2 whose essential superset is @i
+				if subsets2of1[j] == i:
+					if new_cluster is None:
+						new_cluster = clusters2[j]
+					else: 
+						new_cluster = Cluster.union(clusters2[j], new_cluster)
+						is_original = False
+			if new_cluster is not None:
+				defragmented_clusters2.append(new_cluster)
+				are_original2.append(is_original)
+
+		for j in range(n2):
+			if subsets2of1[j] is None:
+				defragmented_clusters2.append(clusters2[j])
+				are_original2.append(True)
+
+			new_cluster = None
+			is_original = True
+			for i in range(n1):
+				if subsets1of2[i] == j:
+					if new_cluster is None:
+						new_cluster = clusters1[i]
+					else: 
+						new_cluster = Cluster.union(clusters1[i], new_cluster)
+						is_original = False
+			if new_cluster is not None:
+				defragmented_clusters1.append(new_cluster)
+				are_original1.append(is_original)
+
+		return (defragmented_clusters1, defragmented_clusters2, are_original1, are_original2)
+
 
 
 class Metric:
