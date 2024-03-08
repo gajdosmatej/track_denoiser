@@ -116,7 +116,7 @@ class Cluster:
 
 
 	@staticmethod
-	def clusterise(event :numpy.ndarray) -> list['Cluster']:
+	def clusterise(event :numpy.ndarray):
 		'''Create list of Clusters from input @event.'''
 		event = numpy.copy(event)
 		clusters = []
@@ -187,7 +187,7 @@ class Cluster:
 	def isGood(self):
 		if len(self.tests) != 4:
 			print("WARNING [Cluster.getPassedTestsNum]: Some tests were not run yet.")
-		return all(self.tests[key] for key in self.tests)
+		return sum(self.tests[key] for key in self.tests) == 4
 
 	def getNeighbourCoefficient(self):
 		'''
@@ -245,7 +245,7 @@ class Cluster:
 
 
 	@staticmethod
-	def crossconnectClusters(clusters1 :list['Cluster'], clusters2 :list['Cluster']) -> tuple[list[int], list[int]]:
+	def crossconnectClusters(clusters1, clusters2):
 		'''
 		Returns a tuple (@subsets1of2, @subsets2of1) -- @subsets1of2 has the same length as @clusters1, 
 		an i-th item contains the index of cluster from @clusters2 which is an essential superset of @clusters1[i]. If such a superset does not exist, @subsets1of2[i] = None.
@@ -269,7 +269,7 @@ class Cluster:
 
 
 	@staticmethod
-	def defragment(clusters1 :list['Cluster'], clusters2 :list['Cluster']) -> tuple[list['Cluster'], list['Cluster'], list[bool], list[bool]]:
+	def defragment(clusters1, clusters2):
 		'''
 		Returns (@defragmented_clusters1, @deframented_clusters2, @are_original1, @are_original2), 
 		where the original clusters with the same essential superset are connected together in the first two lists. In the third and fourth lists, 
@@ -671,7 +671,7 @@ class DataLoader:
 		return tensorflow.data.Dataset.from_generator(lambda: self.dataPairLoad(low_id, high_id), output_signature =
 					(	tensorflow.TensorSpec(shape=(12,14,208,1), dtype=tensorflow.float16),
 						tensorflow.TensorSpec(shape=(12,14,208,1), dtype=tensorflow.float16))
-					).batch(batch_size).prefetch(20)
+					).batch(batch_size).prefetch(10)
 
 
 	def getValidationData(self):
@@ -805,7 +805,7 @@ class Plotting:
 	
 
 	@staticmethod
-	def getPlotEventOneAxis(noise_event :numpy.ndarray, nonNN_event :numpy.ndarray, NN_event :numpy.ndarray, axis :int, event_name :str = None):
+	def getPlotEventOneAxis(noise_event :numpy.ndarray, nonNN_event :numpy.ndarray, NN_event :numpy.ndarray, axis :int, event_name :str = None, cmap :str="Greys"):
 		'''
 		Plot projection of @noise_data, its NN and non-NN reconstruction (@NN_event and @nonNN_event, respectively) in specified @axis. 
 		'''
@@ -815,12 +815,16 @@ class Plotting:
 
 		fig, ax = matplotlib.pyplot.subplots(3)
 		
+		cmap = matplotlib.pyplot.get_cmap(cmap)
+		cmap.set_under('cyan')
+		eps = 1e-8
+
 		ax[0].set_title("Noisy " + event_name)
-		ax[0].imshow(numpy.sum(noise_event, axis=axis), cmap="gray")
+		ax[0].imshow(numpy.sum(noise_event, axis=axis), cmap=cmap, vmin=eps)
 		ax[1].set_title("non-NN Reconstruction")
-		ax[1].imshow(numpy.sum(nonNN_event, axis=axis), cmap="gray")
+		ax[1].imshow(numpy.sum(nonNN_event, axis=axis), cmap=cmap, vmin=eps)
 		ax[2].set_title("NN Reconstruction")
-		ax[2].imshow(numpy.sum(NN_event, axis=axis), cmap="gray")
+		ax[2].imshow(numpy.sum(NN_event, axis=axis), cmap=cmap, vmin=eps)
 		for i in range(3):
 			ax[i].set_xlabel(x_labels[axis])
 			ax[i].set_ylabel(y_labels[axis])
