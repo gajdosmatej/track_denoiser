@@ -55,9 +55,9 @@ class Cluster:
 	'''Class for clusters and methods for clusterisation.'''
 
 	active_zone_threshold = 0.7
-	max_neighbour_coef = 4
-	min_energy_density = 80
-	min_length = 5
+	max_neighbour_coef = 5
+	min_energy_density = 80 #80
+	min_length = 8
 
 	def __init__(self, coords):
 		self.coords = coords
@@ -228,9 +228,12 @@ class Cluster:
 	
 	def setEnergy(self, event):
 		self.energy = 0
+		self.effective_length = 0
 		for coord in self.coords:
-			self.energy += event[coord]	
-		self.energy_density = self.energy / self.length
+			self.energy += event[coord]
+			if event[coord] != 0:
+				self.effective_length += 1	
+		self.energy_density = self.energy / self.effective_length
 
 	@staticmethod
 	def getGoodFromDataset(dataset, energy_dataset):
@@ -822,9 +825,9 @@ class Plotting:
 		ax[0].set_title("Noisy " + event_name)
 		ax[0].imshow(numpy.sum(noise_event, axis=axis), cmap=cmap, vmin=eps)
 		ax[1].set_title("non-NN Reconstruction")
-		ax[1].imshow(numpy.sum(nonNN_event, axis=axis), cmap=cmap, vmin=eps)
+		ax[1].imshow(numpy.sum(nonNN_event, axis=axis), cmap=cmap, vmin=numpy.min([eps, numpy.max(nonNN_event)]))
 		ax[2].set_title("NN Reconstruction")
-		ax[2].imshow(numpy.sum(NN_event, axis=axis), cmap=cmap, vmin=eps)
+		ax[2].imshow(numpy.sum(NN_event, axis=axis), cmap=cmap, vmin=numpy.min([eps, numpy.max(NN_event)]))
 		for i in range(3):
 			ax[i].set_xlabel(x_labels[axis])
 			ax[i].set_ylabel(y_labels[axis])
