@@ -56,8 +56,9 @@ class Cluster:
 
 	active_zone_threshold = 0.7
 	max_neighbour_coef = 5
-	min_energy_density = 80 #80
-	min_length = 8
+	min_energy_density = 80
+	min_length = 10
+	max_nonlinearity = 1
 
 	def __init__(self, coords):
 		self.coords = coords
@@ -94,7 +95,6 @@ class Cluster:
 				if cluster_tensor[neighbour] != 0:	neighbours.append(neighbour)
 			if coordsFormClique(neighbours):	self.corners.append(coord)
 	
-
 	def linify(self):
 		if len(self.corners) < 2:
 			if VERBOSE:	print("WARNING [Cluster.linify]: Less that two corner tiles found, skipping")
@@ -113,7 +113,6 @@ class Cluster:
 			sum_direction = Vector.add(sum_direction, component_direction)
 		sum_direction = Vector.multiply(1/abs(sum_direction[2]), sum_direction)
 		return( corner_left, Vector.linComb(1, corner_right[2] - corner_left[2], corner_left, sum_direction) )'''
-
 
 	@staticmethod
 	def clusterise(event :numpy.ndarray):
@@ -138,7 +137,6 @@ class Cluster:
 			remaining_tracks = event.nonzero()
 		return clusters
 
-
 	@staticmethod
 	def neighbourhood(coord, x_range, y_range, z_range):
 		x,y,z = coord
@@ -147,15 +145,6 @@ class Cluster:
 				for k in range(-z_range, z_range+1):
 					if 0 <= x+i < 12 and 0 <= y+j < 14 and 0 <= z+k < 208:
 						yield (x+i, y+j, z+k)
-
-	#OBSOLETE
-	@staticmethod
-	def getActiveZone():
-		'''Return the space in which the tracks are located.'''
-		data_loader = DataLoader("./data")
-		clean = data_loader.getBatch(True, False, track_type="alltracks")
-		zone = numpy.sum(clean, 0)
-		return numpy.where(zone > 0.01, 1, 0)
 	
 	def testActiveZone(self):
 		'''Check whether the main part of @cluster is located in active zone @zone.'''
@@ -246,7 +235,6 @@ class Cluster:
 				if cluster.isGood():	good_dataset[i] += cluster.getTensor()
 		return good_dataset
 
-
 	@staticmethod
 	def crossconnectClusters(clusters1, clusters2):
 		'''
@@ -269,7 +257,6 @@ class Cluster:
 				if intersect_size / len(b.coords) >= essential_subset_threshold:
 					subsets2of1[j] = i
 		return (subsets1of2, subsets2of1)
-
 
 	@staticmethod
 	def defragment(clusters1, clusters2):
@@ -323,7 +310,7 @@ class Cluster:
 		return (defragmented_clusters1, defragmented_clusters2, are_original1, are_original2)
 
 
-
+#OBSOLETE CLASS
 class Metric:
 	'''
 	Class wrapping methods for metrics calculations.
@@ -466,7 +453,6 @@ class ModelWrapper:
 		self.name = model_name
 		self.threshold = threshold
 
-
 	@staticmethod
 	def loadPostprocessed(path :str, model_name :str):
 		'''
@@ -478,7 +464,6 @@ class ModelWrapper:
 		threshold = float( threshold_f.read() )
 		return ModelWrapper(keras.models.load_model(path + "model", compile=False), model_name, threshold)
 
-
 	def evaluateSingleEvent(self, event :numpy.ndarray):
 		'''
 		Return Model(@event) for one single event.
@@ -489,7 +474,6 @@ class ModelWrapper:
 		result = result[0]
 		return numpy.reshape(result, event.shape)
 
-
 	def evaluateBatch(self, events :numpy.ndarray):
 		'''
 		Return Model(@events), where @events is a batch of inputs.
@@ -499,7 +483,6 @@ class ModelWrapper:
 		results = self.model.predict(reshaped)
 		return numpy.reshape(results, events.shape)
 
-
 	def save(self, path :str):
 		'''
 		Save this model to @path.
@@ -507,14 +490,12 @@ class ModelWrapper:
 
 		keras.models.save_model(self.model, path)
 
-
 	def hasThreshold(self):
 		'''
 		Check, whether this object has defined classification threshold.
 		'''
 
 		return self.threshold != None
-
 
 	def classify(self, raw_reconstruction :numpy.ndarray):
 		'''
@@ -567,8 +548,7 @@ class DataLoader:
 			f.write(dump_str)
 			f.close()
 
-
-	def importData(self, dir_name = "dump/"):
+	def importData(self, dir_name = "dump/", names=None):
 		'''
 		Import data previously exported by DataLoader._dumpData_ to a directory (DataLoader.path + @dir_name).  
 		'''
@@ -589,18 +569,29 @@ class DataLoader:
 		if dir_name[-1] != "/":	dir_name += "/"
 		path = self.path + dir_name
 		data = numpy.zeros( (len(os.listdir(path)), 12, 14, 208) )
-		names = []
-		i = 0
-		for name in os.listdir(path):
-			f = open(path + name, "r")
-			for line in f.readlines():
-				x, y, z, E = parseLine(line)
-				data[i,x,y,z] = E
-			f.close()
-			names.append(name[:-4])
-			i += 1
-		return (data, names)
 
+		if names is None:
+			names = []
+			i = 0
+			for name in os.listdir(path):
+				f = open(path + name, "r")
+				for line in f.readlines():
+					x, y, z, E = parseLine(line)
+					data[i,x,y,z] = E
+				f.close()
+				names.append(name[:-4])
+				i += 1
+			return (data, names)
+		else:
+			i = 0
+			for name in names:
+				f = open(path + name + ".txt", "r")
+				for line in f.readlines():
+					x, y, z, E = parseLine(line)
+					data[i,x,y,z] = E
+				f.close()
+				i += 1
+			return (data, names)
 
 	def fillNameIndexDictionary(self):
 		names = self.getX17Names()
@@ -615,9 +606,6 @@ class DataLoader:
 		return self.getBatch(True, noisy, track_type="alltracks", normalising=normalising)[ self.name_index_dict[name] ]
 		#names, events = self.getX17Names(), self.getBatch(True, noisy, track_type="alltracks", normalising=normalising)
 		#return [event for (n, event) in zip(names, events) if n == name][0]
-
-
-
 
 	def loadX17Data(self, track_type :str, noisy :bool):
 		'''
@@ -649,7 +637,6 @@ class DataLoader:
 				space[x,y,z] = E
 			yield (f_name[:-4], space)
 
-
 	def dataPairLoad(self, low_id :int, high_id :int):
 		'''
 		Yield a pair of noisy and clean event tensors from numbered data files in between @low_id and @high_id
@@ -665,7 +652,6 @@ class DataLoader:
 				for i in range(5000):
 					yield ( numpy.reshape(noise_batch[i], (12,14,208,1)), numpy.reshape(signal_batch[i], (12,14,208,1)))
 
-
 	def getDataset(self, low_id :int, high_id :int, batch_size :int):
 		'''
 		Pack the method _dataPairLoad_(@low_id, @high_id) into TensorFlow dataset.
@@ -676,7 +662,6 @@ class DataLoader:
 						tensorflow.TensorSpec(shape=(12,14,208,1), dtype=tensorflow.float16))
 					).batch(batch_size).prefetch(10)
 
-
 	def getValidationData(self):
 		'''
 		Return tuple (X17_noisy, X17_clean), which is convenient format for Keras Model.fit validation_data argument.
@@ -686,7 +671,6 @@ class DataLoader:
 		noisy = numpy.reshape(noisy, (*noisy.shape, 1))
 		clean = numpy.reshape(clean, (*clean.shape, 1))
 		return (noisy, clean)
-
 
 	def datasetExists(self, noisy :bool, track_type :str, normalising :bool):
 		return (noisy, track_type, normalising) in self.existing_experimental_datasets
@@ -806,7 +790,6 @@ class Plotting:
 		title += "by Model " + model_name
 		fig.suptitle(title)
 	
-
 	@staticmethod
 	def getPlotEventOneAxis(noise_event :numpy.ndarray, nonNN_event :numpy.ndarray, NN_event :numpy.ndarray, axis :int, event_name :str = None, cmap :str="Greys"):
 		'''
@@ -851,7 +834,6 @@ class Plotting:
 			matplotlib.pyplot.show()
 			if input("Enter 'q' to stop plotting (or anything else for another plot):") == "q":	break
 	
-
 	@staticmethod
 	def getPlot3D(modelAPI :ModelWrapper, noise_event :numpy.ndarray, are_data_experimental :bool = None, event_name :str = None):
 		'''
@@ -888,7 +870,6 @@ class Plotting:
 
 		return fig, ax1, ax2
 
-
 	def plot3DToAxis(event :numpy.ndarray, ax, title :str = "", scaleSize = lambda x: 150*x+50, z_cut = (0,200)):
 		'''
 		Create 3D plot of @event on specified matplotlib axis @ax.
@@ -922,7 +903,6 @@ class Plotting:
 
 		anim = matplotlib.animation.FuncAnimation(fig, func=run, frames=360, interval=20, blit=False)
 		anim.save(path, fps=30, dpi=200, writer="pillow")
-
 
 	def plotTileDistribution(data :numpy.ndarray, modelAPI :ModelWrapper):
 		'''
