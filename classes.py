@@ -18,6 +18,30 @@ def normalise(event :numpy.ndarray):
 	if M == 0:	return event
 	return event / M
 
+def fitLinePCA(cluster):
+	data = numpy.array(cluster.coords, dtype=numpy.float64)
+	mean = [numpy.mean(data[:,i]) for i in range(3)]
+
+	#scaled_covariance_matrix = numpy.transpose(data) @ data
+	#U, D, V = numpy.linalg.svd(scaled_covariance_matrix)
+
+	#From SVD it follows that for data = UDV*, we have Var = data* data = VD*U* UDV* = VD^2 V*, so the right factor of @data and @scaled_covariance_matrix is the same
+	_, _, V = numpy.linalg.svd(data - mean)
+	direction = V[0]
+
+	a, b = numpy.min(data[:,2]), numpy.max(data[:,2])
+
+	t1, t2 = (a-mean[2]) / direction[2], (b-mean[2]) / direction[2]
+	return (mean + t1*direction, mean + t2*direction, mean, direction)
+
+def getTotalNonlinearityResiduum(cluster, line_direction, line_mean):
+			residuum = 0
+			data = numpy.array(cluster.coords, dtype=numpy.float64) - line_mean
+			for i in range(data.shape[0]):
+				coord = data[i]
+				residuum += numpy.sqrt( coord[0]**2 + coord[1]**2 + coord[2]**2 - (coord[0]*line_direction[0] + coord[1]*line_direction[1] + coord[2]*line_direction[2])**2 + 1e-8)
+			return residuum
+
 
 class Vector:
 	@staticmethod
@@ -95,6 +119,7 @@ class Cluster:
 				if cluster_tensor[neighbour] != 0:	neighbours.append(neighbour)
 			if coordsFormClique(neighbours):	self.corners.append(coord)
 	
+	#OSBOLETE
 	def linify(self):
 		if len(self.corners) < 2:
 			if VERBOSE:	print("WARNING [Cluster.linify]: Less that two corner tiles found, skipping")
@@ -155,6 +180,7 @@ class Cluster:
 		
 		return ( num_in_zone/self.length > self.active_zone_threshold )
 	
+	#OBSOLETE
 	def runTests(self):
 		'''Check conditions for good cluster.'''
 
@@ -443,6 +469,78 @@ class SpatialAttention(keras.layers.Layer):
 		return self.conv( self.aggregation(x) )
 
 
+class FinalProcedure:
+	epsilon = 1e-2
+
+	def reconstructByDefaultEnsemble(self, noisy_data, path_to_models = "./models"):
+		if path_to_models[-1] != "/":	path_to_models += "/"
+
+		model_1 = ModelWrapper( keras.models.load_model(path_to_models + "3D/new_waveform"), "Waveform" )
+		model_2 = ModelWrapper( keras.models.load_model(path_to_models + "3D/small/model"), "Spatial" )
+		self.reconstruction_1 = model_1.evaluateBatch(noisy_data)
+		self.reconstruction_2 = model_2.evaluateBatch(noisy_data)
+		self.reconstruction = self.reconstruction_1 * self.reconstruction_2
+		self.classified = numpy.where(self.reconstruction > self.epsilon, self.reconstruction, 0)
+
+	def selfDefragmentation(self):
+		original_clusters = []
+		defragmentation_coef = 0
+		cluster_count = 0
+
+		for i in range(self.classified.shape[0]):
+			clusters_model_1 = Cluster.clusterise( numpy.where(self.reconstruction_1[i] > self.epsilon, 1, 0) )
+			#clusters_model_2 = Cluster.clusterise( numpy.where(self.reconstruction_2[i] > self.epsilon, 1, 0) )
+			clusters_product = Cluster.clusterise( self.classified[i] )
+			
+			cluster_count_before = len(clusters_product)
+			clusters_product, _, _, _ = Cluster.defragment(clusters_product, clusters_model_1)
+			#clusters_product, _, _, _ = Cluster.defragment(clusters_product, clusters_model_2)
+   
+			original_clusters.append(clusters_product)
+			defragmentation_coef += cluster_count_before - len(clusters_product)
+			cluster_count += len(clusters_product)
+
+		print("Defragmentation occured", defragmentation_coef, "times (final number of clusters " + str(cluster_count) + ")")
+		self.clusters = original_clusters
+
+	def applyBasicCuts(self, noisy_with_energy_dataset):
+		passing_clusters = []
+		cluster_count = 0
+
+		for i in range(self.classified.shape[0]):
+			current_passing_clusters = []
+			for cluster in self.clusters[i]:
+				if cluster.length >= Cluster.min_length and cluster.testActiveZone():
+					cluster.setEnergy(noisy_with_energy_dataset[i])
+					if cluster.energy_density >= Cluster.min_energy_density:
+						current_passing_clusters.append(cluster)
+			passing_clusters.append(current_passing_clusters)
+			cluster_count += len(current_passing_clusters)
+
+		self.clusters = passing_clusters
+		print("Current number of clusters after zone, L and E/L cuts is", cluster_count)
+	
+	def applyLinearityCut(self):
+		passing_clusters = []
+		cluster_count = 0
+
+		for i in range(self.classified.shape[0]):
+			current_passing_clusters = []
+			for cluster in self.clusters[i]:
+				line_start, line_end, line_mean, line_direction = fitLinePCA(cluster)
+				total_residuum = getTotalNonlinearityResiduum(cluster, line_direction, line_mean)
+				cluster.nonlinearity = total_residuum / cluster.length
+
+				if total_residuum / cluster.length < Cluster.max_nonlinearity:
+						current_passing_clusters.append(cluster)
+			passing_clusters.append(current_passing_clusters)
+			cluster_count += len(current_passing_clusters)
+
+		self.clusters = passing_clusters
+		print("Final number of clusters after linearity cut is", cluster_count)
+
+
+
 class ModelWrapper:
 	'''
 	Wrapper for Keras Model class with additional convenient methods.
@@ -506,7 +604,7 @@ class ModelWrapper:
 		return numpy.where(raw_reconstruction > self.threshold, 1, 0)
 
 
-class DataLoader:
+class DataLoader_OLDDIRSTRUCTURE:
 	'''
 	Class for loading X17 data and generated data in tensorflow datasets.
 	'''
@@ -729,6 +827,211 @@ class DataLoader:
 			for (name, _) in self.loadX17Data("goodtracks", False):	names.append(name)
 		if track_type in ["alltracks", "othertracks"]:
 			for (name, _) in self.loadX17Data("othertracks", False):	names.append(name)
+		return names
+
+
+class DataLoader:
+	'''
+	Class for loading X17 data and generated data in tensorflow datasets.
+	'''
+
+	def __init__(self, path :str):
+		'''
+		Create a new instance of DataLoader class.
+		@path ... Path to data root directory (it should contain directories "simulated/" and "x17/").
+		'''
+
+		self.path = path + ('/' if path[-1] != '/' else '')
+		self.name_index_dict = {}
+		self.fillNameIndexDictionary()
+		self.existing_experimental_datasets = {}
+
+	def dumpData(self, data, names, dir_name = "dump/"):
+		'''
+		Export @data to (DataLoader.path + @dir_name). Each @data[i] event is saved in its own { @names[i] }.txt file, where each line corresponds to "x, y, z, E" nonzero energy element of the event.
+		'''
+
+		if dir_name[-1] != "/":	dir_name += "/"
+		path = self.path + dir_name
+		if not os.path.isdir(path):
+			os.makedirs(path)
+		else:
+			print("WARNING [DataLoader.dumpData]: Dump directory already exists, aborting")
+			return
+		
+		for event, name in zip(data, names):
+			dump_str = ""
+			xs, ys, zs = numpy.nonzero(event)
+			for i in range(xs.shape[0]):
+				x, y, z = xs[i], ys[i], zs[i]
+				E = event[x,y,z]
+				dump_str += str(x) + ", " + str(y) + ", " + str(z) + ", " + str(int(E)) + "\n"
+			dump_str = dump_str[:-1]
+			f = open(path + name + ".txt", "w")
+			f.write(dump_str)
+			f.close()
+
+	def importData(self, dir_name = "dump/", names=None):
+		'''
+		Import data previously exported by DataLoader._dumpData_ to a directory (DataLoader.path + @dir_name).  
+		'''
+
+		def parseLine(line :str):
+			x = line[:line.index(",")]
+			x = int(x)
+			line = line[line.index(",")+1:]
+			y = line[:line.index(",")]
+			y = int(y)
+			line = line[line.index(",")+1:]
+			z = line[:line.index(",")]
+			z = int(z)
+			line = line[line.index(",")+1:]
+			E = int(line)
+			return (x, y, z, E)
+		
+		if dir_name[-1] != "/":	dir_name += "/"
+		path = self.path + dir_name
+		data = numpy.zeros( (len(os.listdir(path)), 12, 14, 208) )
+
+		if names is None:
+			names = []
+			i = 0
+			for name in os.listdir(path):
+				f = open(path + name, "r")
+				for line in f.readlines():
+					x, y, z, E = parseLine(line)
+					data[i,x,y,z] = E
+				f.close()
+				names.append(name[:-4])
+				i += 1
+			return (data, names)
+		else:
+			i = 0
+			for name in names:
+				f = open(path + name + ".txt", "r")
+				for line in f.readlines():
+					x, y, z, E = parseLine(line)
+					data[i,x,y,z] = E
+				f.close()
+				i += 1
+			return (data, names)
+
+	def fillNameIndexDictionary(self):
+		names = self.getX17Names()
+		for i in range(len(names)):
+			self.name_index_dict[names[i]] = i
+
+	def getEventFromName(self, name: str, noisy :bool, normalising :bool = True):
+		'''
+		Return X17 event from its @name.
+		'''
+
+		return self.getBatch(True, noisy, normalising=normalising)[ self.name_index_dict[name] ]
+		#names, events = self.getX17Names(), self.getBatch(True, noisy, track_type="alltracks", normalising=normalising)
+		#return [event for (n, event) in zip(names, events) if n == name][0]
+
+	def loadX17Data(self, noisy :bool):
+		'''
+		Parse X17 data from txt file into list of tuples (event name, 3D event array).
+		'''
+
+		def parseX17Line(line :str):
+			x = line[:line.index(",")]
+			x = int(x)
+			line = line[line.index(",")+1:]
+			y = line[:line.index(",")]
+			y = int(y)
+			line = line[line.index(",")+1:]
+			z = line[:line.index(",")]
+			z = int(z)
+			line = line[line.index(",")+1:]
+			E = int(line)
+			return (x, y, z, E)
+
+		path = self.path + "x17/" + ("noisy/" if noisy else "clean/")
+
+		for f_name in os.listdir(path):
+			file = open(path + f_name, 'r')
+			space = numpy.zeros((12,14,208))
+			for line in file:
+				x, y, z, E = parseX17Line(line)
+				space[x,y,z] = E
+			yield (f_name[:-4], space)
+
+	def dataPairLoad(self, low_id :int, high_id :int):
+		'''
+		Yield a pair of noisy and clean event tensors from numbered data files in between @low_id and @high_id
+		'''
+
+		while True:
+			order = numpy.arange(low_id, high_id)
+			numpy.random.shuffle(order)
+			for id in order:
+				signal_batch = numpy.load(self.path + "simulated/clean/" + str(id) + ".npy")
+				#signal_batch = numpy.where(signal_batch > 0.001, 1, 0)	#CLASSIFICATION
+				noise_batch = numpy.load(self.path + "simulated/noisy/" + str(id) + ".npy")
+				for i in range(5000):
+					yield ( numpy.reshape(noise_batch[i], (12,14,208,1)), numpy.reshape(signal_batch[i], (12,14,208,1)))
+
+	def getDataset(self, low_id :int, high_id :int, batch_size :int):
+		'''
+		Pack the method _dataPairLoad_(@low_id, @high_id) into TensorFlow dataset.
+		'''
+
+		return tensorflow.data.Dataset.from_generator(lambda: self.dataPairLoad(low_id, high_id), output_signature =
+					(	tensorflow.TensorSpec(shape=(12,14,208,1), dtype=tensorflow.float16),
+						tensorflow.TensorSpec(shape=(12,14,208,1), dtype=tensorflow.float16))
+					).batch(batch_size).prefetch(10)
+
+	#def getValidationData(self):
+		'''
+		Return tuple (X17_noisy, X17_clean), which is convenient format for Keras Model.fit validation_data argument.
+		'''
+
+		'''noisy, clean = self.getBatch(True, True, track_type="goodtracks"), self.getBatch(True, False, track_type="goodtracks")
+		noisy = numpy.reshape(noisy, (*noisy.shape, 1))
+		clean = numpy.reshape(clean, (*clean.shape, 1))
+		return (noisy, clean)'''
+
+	def datasetExists(self, noisy :bool, normalising :bool):
+		return (noisy, normalising) in self.existing_experimental_datasets
+	
+	def getDatasetFromDictionary(self, noisy :bool, normalising :bool):
+		return self.existing_experimental_datasets[(noisy, normalising)]
+
+	def addDatasetToDictionary(self, dataset :numpy.array, noisy :bool, normalising :bool):
+		self.existing_experimental_datasets[(noisy, normalising)] = dataset
+
+	def getBatch(self, experimental :bool = True, noisy :bool = True, file_id :int = 0, normalising :bool = True):
+		'''
+		Get one data batch as numpy array.
+		@experimental: Whether simulated or X17 data should be used.
+		@noisy: Whether noisy or clean data should be used.
+		@file_id: File ID, from which the simulated batch should be loaded (useless for @experimental = True).
+		@normalising: Whether X17 data should be mapped to [0,1] first (default True, good for evaluating by models, but energy information is lost).
+		'''
+		
+		if not experimental:
+			return numpy.load(self.path + "simulated/" + ("noisy/" if noisy else "clean/") + str(file_id) + ".npy")
+		
+		if self.datasetExists(noisy, normalising):
+			return self.getDatasetFromDictionary(noisy, normalising)
+	
+		x17_data = []
+		for _, event in self.loadX17Data(noisy):
+			x17_data.append( normalise(event) if normalising else event )
+		dataset = numpy.array(x17_data)
+		self.addDatasetToDictionary(dataset, noisy, normalising)
+		return dataset
+
+	
+	def getX17Names(self):
+		'''
+		Return X17 track names. 
+		'''
+
+		names = []
+		for (name, _) in self.loadX17Data(False):	names.append(name)
 		return names
 
 
