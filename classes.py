@@ -950,7 +950,8 @@ class DataLoader:
 
 		path = self.path + "x17/" + ("noisy/" if noisy else "clean/")
 
-		for f_name in os.listdir(path):
+		for f_int in sorted( [int(val[5:-4]) for val in os.listdir(path)] ):
+			f_name = "track" + str(f_int) + ".txt"
 			file = open(path + f_name, 'r')
 			space = numpy.zeros((12,14,208))
 			for line in file:
@@ -1183,14 +1184,14 @@ class Plotting:
 		xs, ys, zs = event.nonzero()
 		vals = numpy.array([event[xs[i],ys[i],zs[i]] for i in range(len(xs))])
 		sctr = ax.scatter(xs, ys, zs, c=vals, cmap="plasma", marker="s", s=scaleSize(vals))
-		ax.set_xlim(0, 11)
+		ax.set_xlim(0, 110)
 		ax.set_xlabel("$x$")
-		ax.set_ylim(0, 13)
+		ax.set_ylim(0, 130)
 		ax.set_ylabel("$y$")
 		ax.set_zlim(*z_cut)
 		ax.set_zlabel("$z$")
 		ax.set_title(title)
-		ax.set_box_aspect((12, 14, 50))
+		#ax.set_box_aspect((12, 14, 50))
 		return sctr
 
 	def animation3D(path :str, modelAPI :ModelWrapper, noise_event :numpy.ndarray, are_data_experimental :bool = None):
