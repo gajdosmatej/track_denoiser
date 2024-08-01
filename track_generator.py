@@ -3,317 +3,262 @@ import matplotlib.pyplot
 import time
 import os
 import sys
-
-def getProjection(space :numpy.ndarray, axis :int):
-	return numpy.sum(space, axis)
-
-def normalise(arr :numpy.ndarray):
-	'''Linearly maps values of input array to [0,1]'''
-	M =  numpy.max(arr)
-	return arr / (1 if M == 0 else M)
+from classes import DataLoader
 
 
-class Generator:
-	DIMENSIONS = (12, 14, 208)
-	CURVATURE_SIGMA = 0.05	#sigma of normal distribution, which updateDirection samples R3 vector from
-	DIRECTION_NORMS = numpy.array([0.1,0.1,1.])	#factors which multiply each coordinate of direction unit vector (main aim is to increase velocity in Z direction in order to compensate dim_Z >> dim_X, dim_Y)
-	SIGNAL_CHANGE_DIRECTION_PROBABILITY = 0.1	#the signal probability that updateDirection is called in a step
-	NOISE_TRACKS_NUM_RANGE = (15,30)	#the minimal and maximal number of noise tracks
-	DATA_DIR_PATH = "./data"
-	NOISE_MEAN_ENERGY = 0.5
-	NOISE_SIGMA_ENERGY = 1.
-	MAX_NOISE_STEPS = 8
+USE_MEASURED_NOISE = 2	# 0 => only generated, 1 => only measured, 2 => mixed 1:1
+BATCH_SIZE = 5000
+SHAPE = (12,14,208)
+PROBABILITY_TILE_NOISY = 0.0005
+MOVEMENT_FACTORS = numpy.array([0.1,0.1,1])
+NOISE_LENGTH_LAMBDA = 6
+Z_BOUNDS = (50,170)
+TRACK_THRESHOLD = 3
+#PROBABILITY_CHIMNEY = 0.005	# for one pad
+DATA_LOADER = DataLoader("./data")
+BACKGROUNDS, _ = DATA_LOADER.importData("x17/gauge_backgrounds")[:100]
 
-	def __init__(self):
-		self.initialise()
 
-	def initialise(self):
-		self.space = numpy.zeros(self.DIMENSIONS, dtype=numpy.float16)
+def getWaveformNoiseTileCDF():
+	max_num = SHAPE[2]
+	p = PROBABILITY_TILE_NOISY
+	CDF = [0] * (max_num+1)
+	
+	probabilities = [0] * (max_num+1)
+	probabilities[0] = (1-p)**max_num
+	CDF[0] = probabilities[0]
 
-	def updateDirection(self, direction :numpy.ndarray):
-		'''Randomly updates the direction vector.'''
-		direction += numpy.random.normal(loc=0, scale=self.CURVATURE_SIGMA, size=3)
-		direction /= numpy.linalg.norm(direction)
-		direction *= self.DIRECTION_NORMS
+	for i in range(1, max_num+1):
+		probabilities[i] = p/(1-p) * (max_num-i+1) / i * probabilities[i-1]
+		CDF[i] = CDF[i-1] + probabilities[i]
+	return CDF
 
-	def discretise(self, coord):
-		'''Find discretised space node corresponding to given spatial coordinates.'''
-		return (round(coord[0]), round(coord[1]), round(coord[2]))
 
-	def isCoordOutOfBounds(self, coord):
-		return ( (0,0,0) > coord ).any() or (coord >= numpy.array(self.DIMENSIONS)-0.5 ).any()
+NOISE_TILE_CDF = getWaveformNoiseTileCDF()
 
-	def getRandomBoundaryStart(self):
-		side = numpy.random.randint(0,6)
-		position, direction = None, None
-		if side == 0:
-			position = numpy.array( [0, numpy.random.randint(0, self.DIMENSIONS[1]), numpy.random.randint(0, self.DIMENSIONS[2])], dtype=float )
-			direction = numpy.array([self.DIRECTION_NORMS[0],0.,0.])
-		elif side == 1:
-			position = numpy.array( [self.DIMENSIONS[0]-1, numpy.random.randint(0, self.DIMENSIONS[1]), numpy.random.randint(0, self.DIMENSIONS[2])], dtype=float )
-			direction = numpy.array([-self.DIRECTION_NORMS[0],0.,0.])
-		elif side == 2:
-			position = numpy.array( [numpy.random.randint(0, self.DIMENSIONS[0]), 0, numpy.random.randint(0, self.DIMENSIONS[2])], dtype=float )
-			direction = numpy.array([0.,self.DIRECTION_NORMS[1],0.])
-		elif side == 3:
-			position = numpy.array( [numpy.random.randint(0, self.DIMENSIONS[0]), self.DIMENSIONS[1]-1, numpy.random.randint(0, self.DIMENSIONS[2])], dtype=float )
-			direction = numpy.array([0.,-self.DIRECTION_NORMS[1],0.])
-		elif side == 4:
-			position = numpy.array( [numpy.random.randint(0, self.DIMENSIONS[0]), numpy.random.randint(0, self.DIMENSIONS[1]), 0], dtype=float )
-			direction = numpy.array([0.,0.,self.DIRECTION_NORMS[2]])
-		else:
-			position = numpy.array( [numpy.random.randint(0, self.DIMENSIONS[0]), numpy.random.randint(0, self.DIMENSIONS[1]), self.DIMENSIONS[2]-1], dtype=float )
-			direction = numpy.array([0.,0.,-self.DIRECTION_NORMS[2]])
-		return (position, direction)
 
-	def sampleInitDirection(self):
+def getBoundaryStart(direction):
+		position = None
+		m = numpy.max(direction)
+
+		if direction[0] == m:
+			position = numpy.array( [0, numpy.random.randint(0, SHAPE[1]), numpy.random.randint(*Z_BOUNDS)], dtype=float )
+		elif direction[0] == -m:
+			position = numpy.array( [SHAPE[0]-1, numpy.random.randint(0, SHAPE[1]), numpy.random.randint(*Z_BOUNDS)], dtype=float )
+		elif direction[1] == m:
+			position = numpy.array( [numpy.random.randint(0, SHAPE[0]), 0, numpy.random.randint(*Z_BOUNDS)], dtype=float )
+		elif direction[1] == -m:
+			position = numpy.array( [numpy.random.randint(0, SHAPE[0]), SHAPE[1]-1, numpy.random.randint(*Z_BOUNDS)], dtype=float )
+		elif direction[2] == m:
+			position = numpy.array( [numpy.random.randint(0, SHAPE[0]), numpy.random.randint(0, SHAPE[1]), Z_BOUNDS[0]], dtype=float )
+		elif direction[2] == -m:
+			position = numpy.array( [numpy.random.randint(0, SHAPE[0]), numpy.random.randint(0, SHAPE[1]), Z_BOUNDS[1]], dtype=float )
+		return position
+
+
+def sampleInitDirection():
 		'''Samples direction vector uniformly from a unit sphere.'''
 		vect = numpy.random.normal(loc=0,scale=1,size=3)
 		vect /= numpy.linalg.norm(vect)
-		vect *= self.DIRECTION_NORMS
 		return vect
 
-	def addSignal(self):
-		'''Adds one signal track into the input 3D array space.'''
+def sampleLandau():
+	#CHANGE 12.07.2024
+	'''def landauPDF(x):
+		return 1/numpy.sqrt(2*numpy.pi) * numpy.exp( -((x-3)+numpy.exp(-(x-3)))/2 )
+	while True:
+		x, y = numpy.random.uniform(0, 6), numpy.random.random()
+		if y < landauPDF(x):	return x'''
+	mu = 0.2
+	sigma = 0.05
+	
+	def standardisedLandauPDF(x):
+		return 1/numpy.sqrt(2*numpy.pi) * numpy.exp( -(x+numpy.exp(-x))/2 )
+	while True:
+		offset = mu + 2*sigma*numpy.log(sigma) / numpy.pi
+		x = numpy.random.uniform(-offset/sigma, (1-offset)/sigma)
+		y = numpy.random.random()
+		if y < standardisedLandauPDF(x):
+			return numpy.clip(sigma*x + offset, 0, 1)
+
+def discretise(coord):
+	return (round(coord[0]), round(coord[1]), round(coord[2]))
+
+def generateTrack(event_noise, event_clean):
+	direction = sampleInitDirection()
+	position = getBoundaryStart(direction)
+	coord = position
+	visited_tiles = 0
+	while True:
+		new_position = position + direction*MOVEMENT_FACTORS
+		new_coord = discretise(new_position)
+		if numpy.any(new_coord != coord):
+			if new_coord[0] < 0 or new_coord[0] >= SHAPE[0] or new_coord[1] < 0 or new_coord[1] >= SHAPE[1] or new_coord[2] < Z_BOUNDS[0] or new_coord[2] > Z_BOUNDS[1]:	break
+			event_noise[new_coord] = sampleLandau()
+			if event_clean is not None:	event_clean[new_coord] = 1
+		visited_tiles += 1 if (new_coord[0] != coord[0] or new_coord[1] != coord[1]) else 0
+		visited_tiles += 0.05 if (new_coord[2] != coord[2]) else 0
+		position = new_position
+		coord = new_coord
+	return visited_tiles >= TRACK_THRESHOLD
+	
+
+
+def sampleNoiseTilesNumber():
+	p = numpy.random.random()
+	for i in range(SHAPE[2]):
+		if p < NOISE_TILE_CDF[i]:	break
+	return i
+
+def addNoiseWaveform(event, x, y, z0=None):
+	if z0 == None:	z0 = numpy.random.randint(0,SHAPE[2])
+	length = numpy.random.poisson(NOISE_LENGTH_LAMBDA)
+	z1 = min(z0+length+1, SHAPE[2])
+	
+	for z in range(z0, z1):
+		#CHANGE 12.07.2024
+		#E = numpy.clip( numpy.random.normal(NOISE_ENERGY_MU, NOISE_ENERGY_SIGMA), 0, None)
+		E = numpy.clip( numpy.random.gamma(0.25297058, 1/1.88917480), 0, 1)
+		event[x,y,z] = E
+
+
+def addGeneratedNoise(event):
+	#chimneys
+	'''for coord in numpy.argwhere(event):
+		if numpy.random.random() < PROBABILITY_CHIMNEY:
+			print("CHIMNEY")
+			addNoiseWaveform(event, *coord)'''
+	
+	for x in range(SHAPE[0]):
+		for y in range(SHAPE[1]):
+			noise_tiles_num = sampleNoiseTilesNumber()
+			for _ in range(noise_tiles_num):
+				addNoiseWaveform(event, x, y)
+
+def addNoise(event, use_measured_noise):
+	if use_measured_noise == 0 or (use_measured_noise == 2 and numpy.random.random() < 0.5):
+		addGeneratedNoise(event)
+		return
+
+	#use measured noisemap
+	num_swaps = 50
+	background = BACKGROUNDS[numpy.random.randint(0,100)]
+	for _ in range(num_swaps):
+		ks, ls = [None, None], [None, None]
+		for i in [0,1]:
+			ks[i], ls[i] = numpy.random.randint(0, background.shape[0]), numpy.random.randint(0, background.shape[1])
 		
-		history = []
-		last_coords = None
-		position = numpy.array(self.DIMENSIONS) * numpy.random.uniform(0.2, 0.8, size=3)
-		direction = self.sampleInitDirection()
-		num_steps = int(numpy.random.normal(loc=60, scale=2))
-
-		for _ in range(num_steps):
-			if self.isCoordOutOfBounds(position):	break
-			
-			coords = self.discretise(position)
-			if coords != last_coords:
-				history.append(coords)
-				last_coords = coords
-				self.space[coords] = 1
-			#if numpy.random.random() < self.SIGNAL_CHANGE_DIRECTION_PROBABILITY:	self.updateDirection(direction)
-			position += direction
-		
-		if len(history) < 15:	#too short track
-			self.initialise()
-			return self.addSignal()
-		return history
-
-	def addNoise(self):
-		'''Adds several noise tracks into the input 3D array space.'''
-		num_of_traces = numpy.random.randint( *self.NOISE_TRACKS_NUM_RANGE )
-		for _ in range(num_of_traces):
-			position = (numpy.array(self.DIMENSIONS) - 1) * numpy.random.uniform(0, 1, size=3)
-			steps = numpy.random.randint(1, self.MAX_NOISE_STEPS)
-			direction = self.sampleInitDirection()
-			for _ in range(steps):
-				self.space[self.discretise(position)] += numpy.clip( numpy.random.normal(loc=self.NOISE_MEAN_ENERGY, scale=self.NOISE_SIGMA_ENERGY), 0, None)
-				position += direction
-				if self.isCoordOutOfBounds(position):	break
-				self.updateDirection(direction)
+		background[ks[0], ls[0]], background[ks[1], ls[1]] = background[ks[1], ls[1]].copy(), background[ks[0], ls[0]].copy()
+	
+	event += background
 
 
-	def energise(self, history :list):
-		#E_prev = numpy.random.uniform(0.5,1.)
-		#E = E_prev + numpy.random.normal(0,0.1)
-		E = numpy.random.uniform(1., 1.5)
-		for coord in history:
-			if numpy.random.random() < 0.1:	E = numpy.random.uniform(0., 1.5)	#discontinuity
-			self.space[coord] = E
-			E += numpy.random.uniform(-0.4, 0.4)
-			if E < 0:	E = (numpy.random.uniform(0, 0.1) if numpy.random.random() < 0.5 else 0)
-			#E_prev, E = E, E + (E-E_prev) + numpy.random.normal(0,0.1)
-			#if E < 0:	E = 0
+def generateEventDenoising(event_noise, event_clean, use_measured_noise):
+	while not generateTrack(event_noise, event_clean):
+		event_noise[...], event_clean[...] = 0, 0
+	addNoise(event_noise, use_measured_noise)
+	#CHANGE 12.07.2024
+	#max_val = numpy.max(event_noise)
+	#numpy.divide(event_noise, max_val, out = event_noise)
 
-	#OBSOLETE
-	def genAndDumpData(self, iterations :int):
-		'''Generates space 3D array with one signal and several noises in each iteration and saves the projections of the clean and noised data.'''
-		noise_names = ["_noise_zy", "_noise_zx", "_noise_yx"]
-		signal_names = ["_signal_zy", "_signal_zx", "_signal_yx"]
-		file_size = 20000
+def generateEventLabeling(event_noise, use_measured_noise):
+	is_good = (numpy.random.random() < 0.5)
+	if is_good:
+		while not generateTrack(event_noise, None):
+			event_noise[...] = 0
+	addNoise(event_noise, use_measured_noise)
+	max_val = numpy.max(event_noise)
+	numpy.divide(event_noise, max_val, out = event_noise)
+	return int(is_good)
 
-		increment = len(os.listdir(self.DATA_DIR_PATH + "2D")) // 6	#some datafiles might be already in the directory, this ensures they will not be overwritten
+def generateBatch(just_labels, use_measured_noise):
+	batch_noise = numpy.zeros( (BATCH_SIZE, *SHAPE), dtype=numpy.float16 )
+	
+	if just_labels:
+		batch_clean = numpy.zeros(BATCH_SIZE, dtype=numpy.float16)
+	else:
+		batch_clean = numpy.zeros( (BATCH_SIZE, *SHAPE), dtype=numpy.float16 )
 
-		file_num = iterations // file_size
-		for file_i in range(file_num):
-			data_noise, data_signal = [[], [], []], [[], [], []]
-			print("Generating data...")
-			for i in range(file_size):
-				if i % 1000 == 0:	print("{:,}".format(file_i *file_size + i), "/", "{:,}".format(iterations))
-				self.initialise()
-				self.addSignal()
-				for k in range(3):
-					data_signal[k].append( normalise(getProjection(self.space, k)) )
-				self.addNoise()
+	for i in range(BATCH_SIZE):
+		if just_labels:
+			batch_clean[i] = generateEventLabeling(batch_noise[i], use_measured_noise)
+		else:
+			generateEventDenoising(batch_noise[i], batch_clean[i], use_measured_noise)
+		if i % 250 == 0:	print(i, "generated")
+	return batch_noise, batch_clean
 
-				for k in range(3):
-					data_noise[k].append( normalise(getProjection(self.space, k)) )
-			print("Saving batch...")
-			for k in range(3):
-				numpy.save(self.DATA_DIR_PATH + "2D/" + str(increment+file_i) + noise_names[k], data_noise[k])
-				numpy.save(self.DATA_DIR_PATH + "2D/" + str(increment+file_i) + signal_names[k], data_signal[k])
 
-	def genAndDumpData3D(self, iterations :int):
-		'''Generates space 3D array with one signal and several noises in each iteration and saves the clean and noised data.'''
-		file_size = 5000
+def generateAndDump(root_path :str, batch_number :int, just_labels :bool, use_measured_noise :int):
+	increment = len(os.listdir(root_path + "noisy/"))	#some datafiles might be already in the directory, this ensures they will not be overwritten
+	for i in range(batch_number):
+		batch_noise, batch_clean = generateBatch(just_labels, use_measured_noise)
+		print("Saving " + str(i) + ". batch from " + str(batch_number))
+		numpy.save(root_path + "noisy/" + str(increment+i) + ".npy", batch_noise)
+		numpy.save(root_path + "clean/" + str(increment+i) + ".npy", batch_clean)
 
-		increment = len(os.listdir(self.DATA_DIR_PATH + "simulated/noisy/"))	#some datafiles might be already in the directory, this ensures they will not be overwritten
 
-		file_num = iterations // file_size
-		for file_i in range(file_num):
-			data_noise, data_signal = [], []
-			print("Generating data...")
-			for i in range(file_size):
-				if i % 1000 == 0:	print("{:,}".format(file_i *file_size + i), "/", "{:,}".format(iterations))
-				self.initialise()
-				signal_history = self.addSignal()
-				data_signal.append( numpy.copy(self.space) )
-				
-				#add energy to signal tiles
-				self.energise(signal_history)
-			
-				self.addNoise()
-				data_noise.append(normalise(self.space))
+def showExample(event_noise, event_clean):
+	x_labels = ["z","z","y"]
+	y_labels = ["y","x","x"]
+	cmap = matplotlib.pyplot.get_cmap("Greys")
+	cmap.set_under('cyan')
 
-			print("Saving batch...")
-			numpy.save(self.DATA_DIR_PATH + "simulated/noisy/" + str(increment+file_i) + ".npy", data_noise)
-			numpy.save(self.DATA_DIR_PATH + "simulated/clean/" + str(increment+file_i) + ".npy", data_signal)
+	event_noise = numpy.repeat( numpy.repeat(event_noise, 10, axis=0), 10, axis=1 )
+	event_clean = numpy.repeat( numpy.repeat(event_clean, 10, axis=0), 10, axis=1 )
 
-#OBSOLETE
-'''
-class Support:
-	@staticmethod
-	def showProjection(space :numpy.ndarray, axis :int):
-		fig, ax = matplotlib.pyplot.subplots(1)
-		ax.imshow( getProjection(space, axis), cmap='gray', vmin=0)
-		matplotlib.pyplot.show()
+	#aspects = [(10/14) / (8/200), (10/12) / (8/200), (10/12)/ (10/14)]
 
-	@staticmethod
-	def showProjections(space :numpy.ndarray, indices :int):
-		''Shows chosen plots (by indices) of the space projections into the xy, yz and zx planes.''
-		if len(indices) == 1:
-			Support.showProjection(space, indices[0])
-			return
-		num_planes = len(indices)
-		labels = [("z", "y"), ("z", "x"), ("y", "x")]
-		fig, ax = matplotlib.pyplot.subplots(num_planes,1)
-		for i in range(num_planes):
-			ax[i].imshow(getProjection(space, indices[i]), cmap='gray', vmin=0)
-			ax[i].set_xlabel(labels[i][0])
-			ax[i].set_ylabel(labels[i][1])
-		matplotlib.pyplot.show()
+	fig, ax = matplotlib.pyplot.subplots(3,2)
+	for i in range(3):
+		ax[i,0].imshow(numpy.sum(event_noise, i), cmap=cmap ,vmin=0.00001)
+		ax[i,0].set_title("Noisy")
+		ax[i,1].imshow(numpy.sum(event_clean, i), cmap=cmap ,vmin=0.00001)
+		ax[i,1].set_title("Clean")
+		for is_noisy in [0,1]:
+			ax[i,is_noisy].set_xlabel(x_labels[i])
+			ax[i,is_noisy].set_ylabel(y_labels[i])
+	matplotlib.pyplot.show()
 
-	@staticmethod
-	def showRandomDataFromFile(num_pics : int):
-		''Shows some random data from datafile.''
-		global datapath
-		zy_projections = numpy.load(datapath + "data_noise_zy.npy")
-		zx_projections = numpy.load(datapath + "data_noise_zx.npy")
-		yx_projections = numpy.load(datapath + "data_noise_yx.npy")
-		zy_projections_sgnl = numpy.load(datapath + "data_signal_zy.npy")
-		zx_projections_sgnl = numpy.load(datapath + "data_signal_zx.npy")
-		yx_projections_sgnl = numpy.load(datapath + "data_signal_yx.npy")
-
-		size = numpy.shape(zy_projections)[0]
-
-		for _ in range(num_pics):
-			index = numpy.random.randint(0, size-1)
-			fig, ax = matplotlib.pyplot.subplots(3,2)
-			ax[0,0].imshow(zy_projections_sgnl[index], cmap='gray')
-			ax[0,0].set_xlabel("z")
-			ax[0,0].set_ylabel("y")
-			ax[1,0].imshow(zx_projections_sgnl[index], cmap='gray')
-			ax[1,0].set_xlabel("z")
-			ax[1,0].set_ylabel("x")
-			ax[2,0].imshow(yx_projections_sgnl[index], cmap='gray')
-			ax[2,0].set_xlabel("y")
-			ax[2,0].set_ylabel("x")
-
-			ax[0,1].imshow(zy_projections[index], cmap='gray')
-			ax[0,1].set_xlabel("z")
-			ax[0,1].set_ylabel("y")
-			ax[1,1].imshow(zx_projections[index], cmap='gray')
-			ax[1,1].set_xlabel("z")
-			ax[1,1].set_ylabel("x")
-			ax[2,1].imshow(yx_projections[index], cmap='gray')
-			ax[2,1].set_xlabel("y")
-			ax[2,1].set_ylabel("x")
-			matplotlib.pyplot.show()
-
-	@staticmethod
-	def show3D(space :numpy.ndarray):
-		''Shows 3D scatter plot of the input space.''
-		xs, ys, zs = space.nonzero()
-		vals = numpy.array([space[xs[i],ys[i],zs[i]] for i in range(len(xs))])
-		fig = matplotlib.pyplot.figure()
-		ax = fig.add_subplot(projection='3d')
-		sctr = ax.scatter(xs, ys, zs, c=vals, cmap="plasma")
-		ax.set_xlim(0, 11)
-		ax.set_xlabel("$x$")
-		ax.set_ylim(0, 13)
-		ax.set_ylabel("$y$")
-		ax.set_zlim(0, 200)
-		ax.set_zlabel("$z$")
-		cb = fig.colorbar(sctr, ax=ax)
-		cb.set_label("$E$")
-		matplotlib.pyplot.show()
-'''
-
-'''from denoise_traces import Plotting
-generator = Generator()
-while True:
-	generator.initialise()
-	history = generator.addSignal()
-	generator.energise(history)
-	fig = matplotlib.pyplot.figure(figsize=matplotlib.pyplot.figaspect(1))
-	ax = fig.add_subplot(1, 1, 1, projection='3d')
-	Plotting.plot3DToAxis(generator.space, ax)
-	fig, ax = matplotlib.pyplot.subplots(2)
-	ax[0].imshow(numpy.sum(generator.space,0),"gray")
-	ax[1].imshow(numpy.sum(generator.space,1),"gray")
-	matplotlib.pyplot.show()'''
 
 if __name__ == "__main__":
-	num_gen, is_3D, path = None, None, None
-	bool_n, bool_p = False, False
+	batch_num, path, labeling_only  = None, None, None
+	bool_n, bool_p, bool_l = False, False, False
+	only_show = False
 
 	for arg in sys.argv[1:]:
 		if bool_n:
-			num_gen = int(float(arg))
+			batch_num = int(float(arg))
 			bool_n = False
 		elif bool_p:
 			path = arg
 			bool_p = False
+		elif bool_l:
+			labeling_only = bool(int(arg))
+			bool_l = False
 		elif arg == "-h":
 			print("-h ... list flags")
-			print("-n <integer> ... number of generated events (at least 20000)")
+			print("-n <integer> ... number of generated batches (" + str(BATCH_SIZE) + " events/batch)")
 			print("-p <path> ... path to data directory")
+			print("-l <0/1> ... whether the generated data are used for denoising (0) or labeling (1)")
+			print("-s ... only show a generated example")
+			exit()
 		elif arg == "-n":	bool_n = True
 		elif arg == "-p":	bool_p = True
+		elif arg == "-s":	only_show = True
+		elif arg == "-l":	bool_l = True
 
-	if num_gen == None or path == None:
-		print("Specify all the parameters")
+	if only_show:
+		noise, clean = numpy.zeros((12,14,208), dtype=numpy.float16), numpy.zeros((12,14,208), dtype=numpy.float16)
+		generateEventDenoising(noise, clean, USE_MEASURED_NOISE)
+		showExample(noise, clean)
+
+	elif batch_num == None or path == None or labeling_only == None:
+		print("Specify all the parameters (flag -h shows their list)")
 	else:
-		generator = Generator()
+		'''generator = Generator()
 		generator.DATA_DIR_PATH = path + ("" if path[-1] == "/" else "/")
-		generator.genAndDumpData3D(num_gen)
-		
-#generator = Generator()
-#generator.genAndDumpData(int(1e6))
-#generator.genAndDumpData3D(int(1e5))
-
-'''
-generator = Generator()
-while True:
-	generator.addSignal()
-	Support.show3D(generator.space)
-	Support.showProjections(generator.space, [0,1,2])
-
-	coord = numpy.nonzero(generator.space)
-	generator.space[coord] = numpy.clip( numpy.random.normal(generator.SIGNAL_ENERGY, 0.8*generator.SIGNAL_ENERGY, coord[0].shape), 0, None)
-
-	generator.addNoise()
-	Support.show3D(generator.space)
-	Support.showProjections(generator.space, [0,1,2])
-	if input() == "q":	break
-	else:	generator.initialise()
-'''
+		generator.genAndDumpData3D(num_gen)'''
+		#GENERATING STUFF
+		path += ("" if path[-1] == "/" else "/")
+		path += ("labeling/" if labeling_only else "simulated/")
+		generateAndDump(path, batch_num, labeling_only, USE_MEASURED_NOISE)
