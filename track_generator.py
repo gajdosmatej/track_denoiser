@@ -13,13 +13,19 @@ PROBABILITY_TILE_NOISY = 0.0005
 MOVEMENT_FACTORS = numpy.array([0.1,0.1,1])
 NOISE_LENGTH_LAMBDA = 6
 Z_BOUNDS = (50,170)
-TRACK_THRESHOLD = 3
-#PROBABILITY_CHIMNEY = 0.005	# for one pad
+TRACK_THRESHOLD = 3	# minimal number of pads for a valid track
 DATA_LOADER = DataLoader("./data")
 BACKGROUNDS, _ = DATA_LOADER.importData("x17/gauge_backgrounds")[:100]
 
 
 def getWaveformNoiseTileCDF():
+	'''
+	Get cumulative distribution function for the random number of tiles in one pad which should start a noise waveform.
+	Each tile has probability @PROBABILITY_TILE_NOISY for starting a noise waveform, so tile is a random variable 
+	T_(x,y,z) ~ Bernoulli(@PROBABILITY_TILE_NOISY). Then the number of tiles in one pad starting a noise waveform is
+	Sum_z T_(x,y,z) ~ Binomial(len(z), @PROBABILITY_TILE_NOISY).
+	'''
+
 	max_num = SHAPE[2]
 	p = PROBABILITY_TILE_NOISY
 	CDF = [0] * (max_num+1)
@@ -33,11 +39,13 @@ def getWaveformNoiseTileCDF():
 		CDF[i] = CDF[i-1] + probabilities[i]
 	return CDF
 
-
 NOISE_TILE_CDF = getWaveformNoiseTileCDF()
 
-
 def getBoundaryStart(direction):
+		'''
+		Get coordinate on a side of a cuboid, such that the direction points inside the cuboid.
+		'''
+
 		position = None
 		m = numpy.max(direction)
 
@@ -57,34 +65,46 @@ def getBoundaryStart(direction):
 
 
 def sampleInitDirection():
-		'''Samples direction vector uniformly from a unit sphere.'''
+		'''
+		Samples direction vector uniformly from a unit sphere.
+		'''
+
 		vect = numpy.random.normal(loc=0,scale=1,size=3)
 		vect /= numpy.linalg.norm(vect)
 		return vect
 
 def sampleLandau():
-	#CHANGE 12.07.2024
-	'''def landauPDF(x):
-		return 1/numpy.sqrt(2*numpy.pi) * numpy.exp( -((x-3)+numpy.exp(-(x-3)))/2 )
-	while True:
-		x, y = numpy.random.uniform(0, 6), numpy.random.random()
-		if y < landauPDF(x):	return x'''
+	'''
+	Sample random value from Landau distribution.
+	'''
+
+	# Values are based on energy distribution of a subset of measured data (calibration dataset)
 	mu = 0.2
 	sigma = 0.05
 	
+	# Approximation of Landau(mu=0, sigma=1)
 	def standardisedLandauPDF(x):
 		return 1/numpy.sqrt(2*numpy.pi) * numpy.exp( -(x+numpy.exp(-x))/2 )
+	
 	while True:
+		# Linearly transform X ~ Landau(0,1) so that aX+b ~ Landau(mu, sigma)
 		offset = mu + 2*sigma*numpy.log(sigma) / numpy.pi
 		x = numpy.random.uniform(-offset/sigma, (1-offset)/sigma)
 		y = numpy.random.random()
-		if y < standardisedLandauPDF(x):
+		if y < standardisedLandauPDF(x):	# Rejection method for sampling from PDF
 			return numpy.clip(sigma*x + offset, 0, 1)
 
 def discretise(coord):
+	'''
+	Return closest tensor entry to continuous coordinate triple @coord.
+	'''
 	return (round(coord[0]), round(coord[1]), round(coord[2]))
 
 def generateTrack(event_noise, event_clean):
+	'''
+	Add linear track to @event_noise (with Landau energies) and to @event_clean (every entry is value 1).
+	'''
+
 	direction = sampleInitDirection()
 	position = getBoundaryStart(direction)
 	coord = position
@@ -92,43 +112,44 @@ def generateTrack(event_noise, event_clean):
 	while True:
 		new_position = position + direction*MOVEMENT_FACTORS
 		new_coord = discretise(new_position)
-		if numpy.any(new_coord != coord):
+		if numpy.any(new_coord != coord):	# The track moved to a new position in event tensors
+			# Check whether the track is out of tensor boundaries
 			if new_coord[0] < 0 or new_coord[0] >= SHAPE[0] or new_coord[1] < 0 or new_coord[1] >= SHAPE[1] or new_coord[2] < Z_BOUNDS[0] or new_coord[2] > Z_BOUNDS[1]:	break
-			event_noise[new_coord] = sampleLandau()
-			if event_clean is not None:	event_clean[new_coord] = 1
+			event_noise[new_coord] = sampleLandau()	# Add energy to noisy event
+			if event_clean is not None:	event_clean[new_coord] = 1	# In case of labeling, @event_clean is left empty
 		visited_tiles += 1 if (new_coord[0] != coord[0] or new_coord[1] != coord[1]) else 0
 		visited_tiles += 0.05 if (new_coord[2] != coord[2]) else 0
 		position = new_position
 		coord = new_coord
 	return visited_tiles >= TRACK_THRESHOLD
-	
-
 
 def sampleNoiseTilesNumber():
+	'''
+	Sample number of tiles in one pad which should start a noise waveform.
+	'''
 	p = numpy.random.random()
 	for i in range(SHAPE[2]):
 		if p < NOISE_TILE_CDF[i]:	break
 	return i
 
 def addNoiseWaveform(event, x, y, z0=None):
+	'''
+	Add noise waveform to @event, starting at position (@x, @y, @z0), propagating in z direction 
+	with a length ~ Poisson( @NOISE_LENGTH_LAMBDA ).
+	'''
+
 	if z0 == None:	z0 = numpy.random.randint(0,SHAPE[2])
 	length = numpy.random.poisson(NOISE_LENGTH_LAMBDA)
 	z1 = min(z0+length+1, SHAPE[2])
 	
 	for z in range(z0, z1):
-		#CHANGE 12.07.2024
-		#E = numpy.clip( numpy.random.normal(NOISE_ENERGY_MU, NOISE_ENERGY_SIGMA), 0, None)
-		E = numpy.clip( numpy.random.gamma(0.25297058, 1/1.88917480), 0, 1)
+		E = numpy.clip( numpy.random.gamma(0.25297058, 1/1.88917480), 0, 1)	# Energy distribution approximation based on the calibration dataset (subset of measured events)
 		event[x,y,z] = E
 
-
 def addGeneratedNoise(event):
-	#chimneys
-	'''for coord in numpy.argwhere(event):
-		if numpy.random.random() < PROBABILITY_CHIMNEY:
-			print("CHIMNEY")
-			addNoiseWaveform(event, *coord)'''
-	
+	'''
+	Add synthetised noise waveforms to @event.
+	'''
 	for x in range(SHAPE[0]):
 		for y in range(SHAPE[1]):
 			noise_tiles_num = sampleNoiseTilesNumber()
@@ -136,6 +157,7 @@ def addGeneratedNoise(event):
 				addNoiseWaveform(event, x, y)
 
 def addNoise(event, use_measured_noise):
+	'''Add the correct noise type to @event based on @use_measured_noise (0 ... generated, 1 ... measured noisemaps, 2 ... both in 1:1 ratio).'''
 	if use_measured_noise == 0 or (use_measured_noise == 2 and numpy.random.random() < 0.5):
 		addGeneratedNoise(event)
 		return
@@ -143,6 +165,7 @@ def addNoise(event, use_measured_noise):
 	#use measured noisemap
 	num_swaps = 50
 	background = BACKGROUNDS[numpy.random.randint(0,100)]
+	# Permute the chosen noisemap
 	for _ in range(num_swaps):
 		ks, ls = [None, None], [None, None]
 		for i in [0,1]:
@@ -152,26 +175,31 @@ def addNoise(event, use_measured_noise):
 	
 	event += background
 
-
 def generateEventDenoising(event_noise, event_clean, use_measured_noise):
+	'''
+	Add track and noise to input tensors used for denoising.
+	'''
 	while not generateTrack(event_noise, event_clean):
 		event_noise[...], event_clean[...] = 0, 0
 	addNoise(event_noise, use_measured_noise)
-	#CHANGE 12.07.2024
-	#max_val = numpy.max(event_noise)
-	#numpy.divide(event_noise, max_val, out = event_noise)
 
 def generateEventLabeling(event_noise, use_measured_noise):
+	'''
+	Create noisy event either with or without a track for labeling usage.
+	'''
+
 	is_good = (numpy.random.random() < 0.5)
-	if is_good:
+	if is_good:	# With a track
 		while not generateTrack(event_noise, None):
 			event_noise[...] = 0
 	addNoise(event_noise, use_measured_noise)
-	max_val = numpy.max(event_noise)
-	numpy.divide(event_noise, max_val, out = event_noise)
 	return int(is_good)
 
 def generateBatch(just_labels, use_measured_noise):
+	'''
+	Generate batch of denoising/labeling data (based on @just_labels).
+	'''
+
 	batch_noise = numpy.zeros( (BATCH_SIZE, *SHAPE), dtype=numpy.float16 )
 	
 	if just_labels:
@@ -189,6 +217,10 @@ def generateBatch(just_labels, use_measured_noise):
 
 
 def generateAndDump(root_path :str, batch_number :int, just_labels :bool, use_measured_noise :int):
+	'''
+	Generate data and save them to .npy files.
+	'''
+
 	increment = len(os.listdir(root_path + "noisy/"))	#some datafiles might be already in the directory, this ensures they will not be overwritten
 	for i in range(batch_number):
 		batch_noise, batch_clean = generateBatch(just_labels, use_measured_noise)
@@ -198,6 +230,10 @@ def generateAndDump(root_path :str, batch_number :int, just_labels :bool, use_me
 
 
 def showExample(event_noise, event_clean):
+	'''
+	Plot and show a generated event.
+	'''
+
 	x_labels = ["z","z","y"]
 	y_labels = ["y","x","x"]
 	cmap = matplotlib.pyplot.get_cmap("Greys")
@@ -221,6 +257,7 @@ def showExample(event_noise, event_clean):
 
 
 if __name__ == "__main__":
+	# Flags
 	batch_num, path, labeling_only  = None, None, None
 	bool_n, bool_p, bool_l = False, False, False
 	only_show = False
@@ -247,6 +284,7 @@ if __name__ == "__main__":
 		elif arg == "-s":	only_show = True
 		elif arg == "-l":	bool_l = True
 
+	# Just plotting if flag -s is present
 	if only_show:
 		noise, clean = numpy.zeros((12,14,208), dtype=numpy.float16), numpy.zeros((12,14,208), dtype=numpy.float16)
 		generateEventDenoising(noise, clean, USE_MEASURED_NOISE)
@@ -255,10 +293,7 @@ if __name__ == "__main__":
 	elif batch_num == None or path == None or labeling_only == None:
 		print("Specify all the parameters (flag -h shows their list)")
 	else:
-		'''generator = Generator()
-		generator.DATA_DIR_PATH = path + ("" if path[-1] == "/" else "/")
-		generator.genAndDumpData3D(num_gen)'''
-		#GENERATING STUFF
+		# Generate and save data
 		path += ("" if path[-1] == "/" else "/")
 		path += ("labeling/" if labeling_only else "simulated/")
 		generateAndDump(path, batch_num, labeling_only, USE_MEASURED_NOISE)
