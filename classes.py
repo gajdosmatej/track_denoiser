@@ -19,6 +19,10 @@ def normalise(event :numpy.ndarray):
 	return event / M
 
 def fitLinePCA(cluster):
+	'''
+	Take a list of 3D coordinates and return PCA line fit in the form of (start, end, directionUnitVector, meanPoint)
+	'''
+	
 	data = numpy.array(cluster.coords, dtype=numpy.float64)
 	mean = [numpy.mean(data[:,i]) for i in range(3)]
 
@@ -35,13 +39,29 @@ def fitLinePCA(cluster):
 	return (mean + t1*direction, mean + t2*direction, mean, direction)
 
 def getTotalNonlinearityResiduum(cluster, line_direction, line_mean):
-			residuum = 0
-			data = numpy.array(cluster.coords, dtype=numpy.float64) - line_mean
-			for i in range(data.shape[0]):
-				coord = data[i]
-				residuum += numpy.sqrt( coord[0]**2 + coord[1]**2 + coord[2]**2 - (coord[0]*line_direction[0] + coord[1]*line_direction[1] + coord[2]*line_direction[2])**2 + 1e-8)
-			return residuum
+	'''
+	Take list of 3D coordinates @cluster and their line fit specified by @line_direction and @line_mean, 
+	return the sum of perpendicular distances of @cluster points from the line fit.
+	'''
+	
+	residuum = 0
+	data = numpy.array(cluster.coords, dtype=numpy.float64) - line_mean
+	for i in range(data.shape[0]):
+		coord = data[i]
+		residuum += numpy.sqrt( coord[0]**2 + coord[1]**2 + coord[2]**2 - (coord[0]*line_direction[0] + coord[1]*line_direction[1] + coord[2]*line_direction[2])**2 + 1e-8)
+	return residuum
 
+AVGPOOL = keras.layers.AveragePooling3D((1,1,8))
+def customBCE(target, pred):
+	'''
+	Custom loss function, returns BCE(@target, @pred) + BCE( avgDownSample(1,1,8)(@target), avgDownSample(1,1,8)(@pred) ).
+	'''
+
+	pred_pool = AVGPOOL(pred)
+	target_pool = AVGPOOL(target)
+	#return tensorflow.math.reduce_mean( keras.losses.binary_crossentropy(target,pred) )
+	return ( tensorflow.math.reduce_mean( keras.losses.binary_crossentropy(target_pool, pred_pool) )
+			+ tensorflow.math.reduce_mean( keras.losses.binary_crossentropy(target, pred) ) )
 
 class Vector:
 	@staticmethod
@@ -75,35 +95,52 @@ class Vector:
 		if v == (0,0,0):	return v
 		return Vector.multiply( 1/Vector.norm(v), v)
 
+
+
 class Cluster:
 	'''Class for clusters and methods for clusterisation.'''
 
 	active_zone_threshold = 0.7
 	max_neighbour_coef = 5
 	min_energy_density = 80
-	min_length = 10
+	min_length = 4
 	max_nonlinearity = 1
+	z_scale_factor = 0.1
 
 	def __init__(self, coords):
 		self.coords = coords
-		self.length = len(coords)
+		self.num_tiles = len(coords)
 		self.corners = []
+		self.pad_length = self.getPadLength()
 		self.neighbour_coef = self.getNeighbourCoefficient()
-		self.findCorners()
+		#self.findCorners()
 		self.tests = {}
 
 	def __str__(self):
-		result = "L = " + str(self.length)
+		result = "L = " + str(self.pad_length)
 		result += "\nneigh_coef = " + str(self.neighbour_coef)
 		result += "\nE_density = " + str(self.energy_density)
-		result += "\n#Passed tests = " + str(self.getPassedTestsNum())
+		#result += "\n#Passed tests = " + str(self.getPassedTestsNum())
 		return result
 	
+
+	def getPadLength(self):
+		pad_len = 0
+		visited_xy = {}
+		for coord in self.coords:
+			xy = (coord[0], coord[1])
+			if xy not in visited_xy:
+				pad_len += 1
+				visited_xy[xy] = 1
+			else:
+				pad_len += self.z_scale_factor
+		return pad_len
+
 	@staticmethod
 	def union(c, d):
 		return Cluster(c.coords + d.coords)
 
-	def findCorners(self):
+	'''def findCorners(self):
 		def coordsFormClique(coords):
 			n = len(coords)
 			for i in range(n):
@@ -117,10 +154,10 @@ class Cluster:
 			neighbours = []
 			for neighbour in self.neighbourhood(coord, 1, 1, 1):
 				if cluster_tensor[neighbour] != 0:	neighbours.append(neighbour)
-			if coordsFormClique(neighbours):	self.corners.append(coord)
+			if coordsFormClique(neighbours):	self.corners.append(coord)'''
 	
 	#OSBOLETE
-	def linify(self):
+	'''def linify(self):
 		if len(self.corners) < 2:
 			if VERBOSE:	print("WARNING [Cluster.linify]: Less that two corner tiles found, skipping")
 			return
@@ -129,9 +166,9 @@ class Cluster:
 			if c[2] < corner_left[2]:	corner_left = c
 			if c[2] > corner_right[2]:	corner_right = c
 
-		return (corner_left, corner_right)
+		return (corner_left, corner_right)'''
 
-		'''sum_direction = (0,0,0)
+	'''sum_direction = (0,0,0)
 		for coord in self.coords:
 			component_direction = Vector.linComb(1, -1, coord, corner_left)
 			component_direction = Vector.normalise(component_direction)
@@ -147,13 +184,12 @@ class Cluster:
 
 		remaining_tracks = event.nonzero()
 		while remaining_tracks[0].size != 0:
-			corners = []	#all tiles where the clusterisation stops (DFS leaves)
 			cluster = [(remaining_tracks[0][0], remaining_tracks[1][0], remaining_tracks[2][0])]
 			event[cluster[0]] = 0
 			stack = [cluster[0]]
 			while stack != []:
 				coord = stack.pop()
-				for neighbour in Cluster.neighbourhood(coord, 1, 1, 2):
+				for neighbour in Cluster.neighbourhood(coord, 1, 1, 8):
 					if event[neighbour] != 0:
 						cluster.append(neighbour)
 						stack.append(neighbour)
@@ -178,31 +214,8 @@ class Cluster:
 		for coord in self.coords:
 			if Cluster.isInModeledZone(coord):	num_in_zone += 1
 		
-		return ( num_in_zone/self.length > self.active_zone_threshold )
+		return ( num_in_zone/self.num_tiles > self.active_zone_threshold )
 	
-	#OBSOLETE
-	def runTests(self):
-		'''Check conditions for good cluster.'''
-
-		try:	self.energy
-		except:	
-			print("WARNING [Cluster.runTests]: Cluster.energy not set yet, aborting.")
-			return
-
-		self.tests["length"] = self.length > self.min_length
-		self.tests["zone"] = self.testActiveZone()
-		self.tests["neighbours"] = self.neighbour_coef <= self.max_neighbour_coef
-		self.tests["energy_density"] = self.energy_density > self.min_energy_density
-	
-	def getPassedTestsNum(self):
-		if len(self.tests) != 4:
-			print("WARNING [Cluster.getPassedTestsNum]: Some tests were not run yet.")
-		return sum(self.tests[key] for key in self.tests)
-	
-	def isGood(self):
-		if len(self.tests) != 4:
-			print("WARNING [Cluster.getPassedTestsNum]: Some tests were not run yet.")
-		return sum(self.tests[key] for key in self.tests) == 4
 
 	def getNeighbourCoefficient(self):
 		'''
@@ -219,6 +232,7 @@ class Cluster:
 			coefs.append(current)
 		return sum(coefs)/len(coefs)
 
+	#OBSOLETE?
 	@staticmethod
 	def getModeledZoneMask():
 		zone = numpy.zeros((12,14,208))
@@ -232,7 +246,8 @@ class Cluster:
 	@staticmethod
 	def isInModeledZone(coord):
 		x,y,z = coord
-		return (98 <= z <=126 and 45/2*x-82 <= z) or (126 < z <= 143 and 3/17*(z-126) <= x <= 2/45*(z+82))
+		return 100<=z<=160
+		#return (98 <= z <=126 and 45/2*x-82 <= z) or (126 < z <= 143 and 3/17*(z-126) <= x <= 2/45*(z+82))
 
 	#TODO OPTIMISE
 	def getTensor(self, event=None):
@@ -242,12 +257,29 @@ class Cluster:
 		return result
 	
 	def setEnergy(self, event):
-		self.energy = 0
+		'''self.energy = 0
 		self.effective_length = 0
+		already_visited = {}
 		for coord in self.coords:
 			self.energy += event[coord]
 			if event[coord] != 0:
-				self.effective_length += 1	
+				if coord in already_visited:
+					self.effective_length += 0.1
+				else:
+					self.effective_length += 1
+					already_visited[coord] = True'''
+		
+		self.energy = 0
+		self.effective_length = 0
+		already_visited = {}
+		for coord in self.coords:
+			self.energy += event[coord]
+			if event[coord] != 0:
+				if coord in already_visited:
+					self.effective_length += 0.1
+				else:
+					self.effective_length += 1
+					already_visited[coord] = True
 		self.energy_density = self.energy / self.effective_length
 
 	@staticmethod
@@ -336,75 +368,6 @@ class Cluster:
 		return (defragmented_clusters1, defragmented_clusters2, are_original1, are_original2)
 
 
-#OBSOLETE CLASS
-class Metric:
-	'''
-	Class wrapping methods for metrics calculations.
-	'''
-
-	epsilon = 0.0000001
-
-	@staticmethod
-	def reconstructionMetric(classified, ground_truth):
-		'''
-		Return the relative number of reconstructed signal tiles.
-		'''
-
-		all_signal = numpy.sum( numpy.where(ground_truth > Metric.epsilon, 1, 0) )
-		if all_signal == 0:	return None
-		return numpy.sum( numpy.where(ground_truth > Metric.epsilon, classified, 0) ) / all_signal
-
-
-	@staticmethod
-	def noiseMetric(noisy, classified, ground_truth):
-		'''
-		Return the relative number of unfiltered noise tiles.
-		'''
-
-		num_signal_tiles = numpy.sum( numpy.where(ground_truth > Metric.epsilon, classified, 0) )
-		num_noise_tiles = numpy.sum(classified) - num_signal_tiles
-		num_all_noise = numpy.sum( numpy.where(noisy > Metric.epsilon, 1, 0) ) - numpy.sum( numpy.where(ground_truth > Metric.epsilon, 1, 0) )
-		if num_all_noise == 0:	return None
-		return num_noise_tiles / num_all_noise
-
-	#NEEDS TO FIX
-	@staticmethod
-	def getRatioOfGoodClusters(data):
-		'''
-		Return the ratio of good clusters in @data. If no cluster is found in @data, return -1.
-		'''
-
-		good_counter = 0
-		all_counter = 0
-		for event in data:
-			clusters = Cluster.clusterise(event)
-			if clusters == []:	continue
-			for cluster in clusters:
-				all_counter += 1
-				if cluster.isGood():
-					good_counter += 1
-
-		return (good_counter / all_counter if all_counter != 0 else -1)
-
-	def getNumberOfGoodEvents(data, energy_data):
-		'''
-		Return the number of events in @data which contain only clusters that pass all the tests.
-		'''
-
-		good_counter = 0
-		for i in range(data.shape[0]):
-			clusters = Cluster.clusterise(data[i])
-			if clusters == []:	continue
-			for cluster in clusters:
-				cluster.setEnergy(energy_data[i])
-				cluster.runTests()
-				if cluster.getPassedTestsNum() != 4:	break
-			else:
-				good_counter += 1
-		return good_counter
-
-
-
 class RandomNoise(keras.layers.Layer):
 	'''
 	Custom Keras Layer applying random gaussian noise to the input.	
@@ -469,18 +432,38 @@ class SpatialAttention(keras.layers.Layer):
 		return self.conv( self.aggregation(x) )
 
 
+#PROBABLY OBSOLETE
 class FinalProcedure:
 	epsilon = 1e-2
 
 	def reconstructByDefaultEnsemble(self, noisy_data, path_to_models = "./models"):
 		if path_to_models[-1] != "/":	path_to_models += "/"
 
-		model_1 = ModelWrapper( keras.models.load_model(path_to_models + "3D/new_waveform"), "Waveform" )
-		model_2 = ModelWrapper( keras.models.load_model(path_to_models + "3D/small/model"), "Spatial" )
+		model_1 = ModelWrapper( keras.models.load_model(path_to_models + "3D/M1", compile=False), "M1" )
+		self.reconstruction = model_1.evaluateBatch(noisy_data)
+		#self.reconstruction = model_1.evaluateBatch(noisy_data) * noisy_data
+		#self.reconstruction = numpy.power( noisy_data, (1-model_1.evaluateBatch(noisy_data)) / (model_1.evaluateBatch(noisy_data)+1e-7) ) 
+
+		self.classified = numpy.where(self.reconstruction > self.epsilon, self.reconstruction, 0)
+
+		'''model_1 = ModelWrapper( keras.models.load_model(path_to_models + "3D/MEW_basic_conv_information_100epochs"), "1" )
+		#model_2 = ModelWrapper( keras.models.load_model(path_to_models + "3D/small/model"), "Spatial" )
+		model_2 = ModelWrapper( keras.models.load_model(path_to_models + "3D/NEWNEWNEW_waveform_longer"), "2" )
 		self.reconstruction_1 = model_1.evaluateBatch(noisy_data)
 		self.reconstruction_2 = model_2.evaluateBatch(noisy_data)
-		self.reconstruction = self.reconstruction_1 * self.reconstruction_2
-		self.classified = numpy.where(self.reconstruction > self.epsilon, self.reconstruction, 0)
+		#self.reconstruction = self.reconstruction_1 * self.reconstruction_2
+
+		def getConfidencyCoefficients(recs):
+			stability_eps = 1e-7
+			#lambdas = [numpy.abs( numpy.log( (rec+stability_eps) /self.epsilon) )**2 + stability_eps for rec in recs]
+			lambdas = [ ( numpy.log( (rec+stability_eps) / (1-rec+stability_eps)) - numpy.log(self.epsilon/(1-self.epsilon)) )**2 + stability_eps for rec in recs]	#invert sigmoid, measure square distance
+			N = 1/numpy.sum(lambdas, axis=0)
+			return N*lambdas
+
+		#lambdas = getConfidencyCoefficients([self.reconstruction_1, self.reconstruction_2])
+		self.reconstruction = self.reconstruction_1
+		#self.reconstruction = lambdas[0]*self.reconstruction_1 + lambdas[1]*self.reconstruction_2
+		self.classified = numpy.where(self.reconstruction > self.epsilon, self.reconstruction, 0)'''
 
 	def selfDefragmentation(self):
 		original_clusters = []
@@ -510,7 +493,7 @@ class FinalProcedure:
 		for i in range(self.classified.shape[0]):
 			current_passing_clusters = []
 			for cluster in self.clusters[i]:
-				if cluster.length >= Cluster.min_length and cluster.testActiveZone():
+				if cluster.pad_length >= Cluster.min_length and cluster.testActiveZone():
 					cluster.setEnergy(noisy_with_energy_dataset[i])
 					if cluster.energy_density >= Cluster.min_energy_density:
 						current_passing_clusters.append(cluster)
@@ -529,17 +512,15 @@ class FinalProcedure:
 			for cluster in self.clusters[i]:
 				line_start, line_end, line_mean, line_direction = fitLinePCA(cluster)
 				total_residuum = getTotalNonlinearityResiduum(cluster, line_direction, line_mean)
-				cluster.nonlinearity = total_residuum / cluster.length
+				cluster.nonlinearity = total_residuum / cluster.num_tiles
 
-				if total_residuum / cluster.length < Cluster.max_nonlinearity:
+				if total_residuum / cluster.num_tiles < Cluster.max_nonlinearity:
 						current_passing_clusters.append(cluster)
 			passing_clusters.append(current_passing_clusters)
 			cluster_count += len(current_passing_clusters)
 
 		self.clusters = passing_clusters
 		print("Final number of clusters after linearity cut is", cluster_count)
-
-
 
 class ModelWrapper:
 	'''
@@ -603,7 +584,7 @@ class ModelWrapper:
 		
 		return numpy.where(raw_reconstruction > self.threshold, 1, 0)
 
-
+#PROBABLY OBSOLETE
 class DataLoader_OLDDIRSTRUCTURE:
 	'''
 	Class for loading X17 data and generated data in tensorflow datasets.
@@ -621,7 +602,7 @@ class DataLoader_OLDDIRSTRUCTURE:
 
 		self.existing_experimental_datasets = {}
 
-	def dumpData(self, data, names, dir_name = "dump/"):
+	def dumpData(self, data, names, dir_name = "dump/", round_digits=0):
 		'''
 		Export @data to (DataLoader.path + @dir_name). Each @data[i] event is saved in its own { @names[i] }.txt file, where each line corresponds to "x, y, z, E" nonzero energy element of the event.
 		'''
@@ -640,7 +621,7 @@ class DataLoader_OLDDIRSTRUCTURE:
 			for i in range(xs.shape[0]):
 				x, y, z = xs[i], ys[i], zs[i]
 				E = event[x,y,z]
-				dump_str += str(x) + ", " + str(y) + ", " + str(z) + ", " + str(int(E)) + "\n"
+				dump_str += str(x) + ", " + str(y) + ", " + str(z) + ", " + str(round(E, round_digits)) + "\n"
 			dump_str = dump_str[:-1]
 			f = open(path + name + ".txt", "w")
 			f.write(dump_str)
@@ -831,6 +812,9 @@ class DataLoader_OLDDIRSTRUCTURE:
 
 
 class DataLoader:
+
+	nice_track_indices = [0, 2, 6, 7, 8, 11, 12, 13, 14, 15, 16, 18, 20, 27, 29, 32, 34, 36, 43, 44, 46, 50, 57, 59, 60, 67, 72, 73, 74, 78, 83, 85, 87, 91, 92, 93, 95, 96, 97, 99, 101, 103, 104, 106, 108, 113, 114, 115, 118, 119, 124, 129, 135, 139, 141, 142, 150, 152, 154, 158, 159, 160, 162, 163, 174, 175, 177, 184, 194, 196, 200, 201, 202, 206, 207, 213, 214, 217, 223, 232, 234, 235, 238, 245, 248, 249, 250, 251, 257, 259, 268, 270, 272, 276, 277, 278, 282, 284, 287, 290, 297, 298, 299, 300, 302, 303, 306, 310, 311, 316, 321, 325, 326, 330, 332, 333, 336, 339, 340, 349, 358, 363, 369, 372, 373, 374, 383, 384, 389, 390, 394, 396, 397, 398, 400, 403, 404, 410, 414, 420, 423, 424, 425, 432, 439, 446, 454, 455, 459, 460, 461, 464, 466, 468, 469, 473, 486, 490, 491, 493, 499, 503, 505, 508, 511, 512, 513, 515, 517, 522, 523, 528, 531, 539, 540, 541, 554, 555, 557, 561, 565, 569, 571, 572, 576, 579, 580, 581, 584, 585, 587, 589, 590, 591, 596, 597, 600, 607, 608, 609, 612, 614, 615, 616, 620, 621, 622, 623, 624, 625, 626, 627, 628, 629, 632, 634, 635, 636, 639, 640]
+
 	'''
 	Class for loading X17 data and generated data in tensorflow datasets.
 	'''
@@ -846,7 +830,7 @@ class DataLoader:
 		self.fillNameIndexDictionary()
 		self.existing_experimental_datasets = {}
 
-	def dumpData(self, data, names, dir_name = "dump/"):
+	def dumpData(self, data, names, dir_name = "dump/", round_digits=0):
 		'''
 		Export @data to (DataLoader.path + @dir_name). Each @data[i] event is saved in its own { @names[i] }.txt file, where each line corresponds to "x, y, z, E" nonzero energy element of the event.
 		'''
@@ -865,7 +849,7 @@ class DataLoader:
 			for i in range(xs.shape[0]):
 				x, y, z = xs[i], ys[i], zs[i]
 				E = event[x,y,z]
-				dump_str += str(x) + ", " + str(y) + ", " + str(z) + ", " + str(int(E)) + "\n"
+				dump_str += str(x) + ", " + str(y) + ", " + str(z) + ", " + str(round(E, round_digits)) + "\n"
 			dump_str = dump_str[:-1]
 			f = open(path + name + ".txt", "w")
 			f.write(dump_str)
@@ -886,7 +870,7 @@ class DataLoader:
 			z = line[:line.index(",")]
 			z = int(z)
 			line = line[line.index(",")+1:]
-			E = int(line)
+			E = float(line)
 			return (x, y, z, E)
 		
 		if dir_name[-1] != "/":	dir_name += "/"
@@ -971,6 +955,7 @@ class DataLoader:
 				signal_batch = numpy.load(self.path + "simulated/clean/" + str(id) + ".npy")
 				#signal_batch = numpy.where(signal_batch > 0.001, 1, 0)	#CLASSIFICATION
 				noise_batch = numpy.load(self.path + "simulated/noisy/" + str(id) + ".npy")
+				
 				for i in range(5000):
 					yield ( numpy.reshape(noise_batch[i], (12,14,208,1)), numpy.reshape(signal_batch[i], (12,14,208,1)))
 
