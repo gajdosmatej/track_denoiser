@@ -8,6 +8,7 @@ import copy
 import os
 
 VERBOSE = False
+SATURATION_THRESHOLD = 800
 
 def normalise(event :numpy.ndarray):
 	'''
@@ -50,6 +51,21 @@ def getTotalNonlinearityResiduum(cluster, line_direction, line_mean):
 		coord = data[i]
 		residuum += numpy.sqrt( coord[0]**2 + coord[1]**2 + coord[2]**2 - (coord[0]*line_direction[0] + coord[1]*line_direction[1] + coord[2]*line_direction[2])**2 + 1e-8)
 	return residuum
+
+def removeChimneys(event):
+	'''
+	Remove noisy waveforms in cases where the waveform crosses the saturation threshold.
+	'''
+	xs, ys, zs = numpy.where(event > SATURATION_THRESHOLD)
+	pads = {}
+	for i in range(xs.shape[0]):
+		x, y, z = xs[i], ys[i], zs[i]
+		if (x,y) not in pads:	pads[(x,y)] = z
+		else:	pads[(x,y)] = min(z, pads[(x,y)])	# store the smallest z coordinate where the crossing occured
+	
+	for (x,y) in pads:
+		z = pads[(x,y)]
+		event[x,y,(z+1):] = 0
 
 AVGPOOL = keras.layers.AveragePooling3D((1,1,8))
 def customBCE(target, pred):
@@ -905,12 +921,12 @@ class DataLoader:
 		for i in range(len(names)):
 			self.name_index_dict[names[i]] = i
 
-	def getEventFromName(self, name: str, noisy :bool, normalising :bool = True):
+	def getEventFromName(self, name: str, noisy :bool, preprocessed :bool = True):
 		'''
 		Return X17 event from its @name.
 		'''
 
-		return self.getBatch(True, noisy, normalising=normalising)[ self.name_index_dict[name] ]
+		return self.getBatch(True, noisy, preprocessed=preprocessed)[ self.name_index_dict[name] ]
 		#names, events = self.getX17Names(), self.getBatch(True, noisy, track_type="alltracks", normalising=normalising)
 		#return [event for (n, event) in zip(names, events) if n == name][0]
 
@@ -979,35 +995,39 @@ class DataLoader:
 		clean = numpy.reshape(clean, (*clean.shape, 1))
 		return (noisy, clean)'''
 
-	def datasetExists(self, noisy :bool, normalising :bool):
-		return (noisy, normalising) in self.existing_experimental_datasets
+	def datasetExists(self, noisy :bool, preprocessed :bool):
+		return (noisy, preprocessed) in self.existing_experimental_datasets
 	
-	def getDatasetFromDictionary(self, noisy :bool, normalising :bool):
-		return self.existing_experimental_datasets[(noisy, normalising)]
+	def getDatasetFromDictionary(self, noisy :bool, preprocessed :bool):
+		return self.existing_experimental_datasets[(noisy, preprocessed)]
 
-	def addDatasetToDictionary(self, dataset :numpy.array, noisy :bool, normalising :bool):
-		self.existing_experimental_datasets[(noisy, normalising)] = dataset
+	def addDatasetToDictionary(self, dataset :numpy.array, noisy :bool, preprocessed :bool):
+		self.existing_experimental_datasets[(noisy, preprocessed)] = dataset
 
-	def getBatch(self, experimental :bool = True, noisy :bool = True, file_id :int = 0, normalising :bool = True):
+	def getBatch(self, experimental :bool = True, noisy :bool = True, file_id :int = 0, preprocessed :bool = True):
 		'''
 		Get one data batch as numpy array.
 		@experimental: Whether simulated or X17 data should be used.
 		@noisy: Whether noisy or clean data should be used.
 		@file_id: File ID, from which the simulated batch should be loaded (useless for @experimental = True).
-		@normalising: Whether X17 data should be mapped to [0,1] first (default True, good for evaluating by models, but energy information is lost).
+		@preprocessed: Whether chimneys should be removed and X17 data should be mapped to [0,1] first (default True, good for evaluating by models, but energy information is lost).
 		'''
 		
 		if not experimental:
 			return numpy.load(self.path + "simulated/" + ("noisy/" if noisy else "clean/") + str(file_id) + ".npy")
 		
-		if self.datasetExists(noisy, normalising):
-			return self.getDatasetFromDictionary(noisy, normalising)
+		if self.datasetExists(noisy, preprocessed):
+			return self.getDatasetFromDictionary(noisy, preprocessed)
 	
 		x17_data = []
 		for _, event in self.loadX17Data(noisy):
-			x17_data.append( normalise(event) if normalising else event )
+			if preprocessed:
+				removeChimneys(event)
+				x17_data.append( normalise(event) )
+			else:
+				x17_data.append( event )
 		dataset = numpy.array(x17_data)
-		self.addDatasetToDictionary(dataset, noisy, normalising)
+		self.addDatasetToDictionary(dataset, noisy, preprocessed)
 		return dataset
 
 	
