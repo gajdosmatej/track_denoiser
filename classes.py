@@ -19,12 +19,17 @@ def normalise(event :numpy.ndarray):
 	if M == 0:	return event
 	return event / M
 
-def fitLinePCA(cluster):
+def fitLinePCA(cluster, in_temporal_space = True):
 	'''
-	Take a list of 3D coordinates and return PCA line fit in the form of (start, end, directionUnitVector, meanPoint)
+	Take a list of 3D coordinates and return PCA line fit in the form of (start, end, directionUnitVector, meanPoint).
+	@in_temporal_space (bool) ... If False, convert @cluster from (x,y,t) space to (x,y,z)
 	'''
+
+	coords = cluster.coords
+	if not in_temporal_space:
+		coords = [(x,y,t/10) for (x,y,t) in coords]
 	
-	data = numpy.array(cluster.coords, dtype=numpy.float64)
+	data = numpy.array(coords, dtype=numpy.float64)
 	mean = [numpy.mean(data[:,i]) for i in range(3)]
 
 	#scaled_covariance_matrix = numpy.transpose(data) @ data
@@ -141,7 +146,7 @@ class Cluster:
 		self.num_tiles = len(coords)
 		self.corners = []
 		self.pad_length = self.getPadLength()
-		self.neighbour_coef = self.getNeighbourCoefficient()
+		#self.neighbour_coef = self.getNeighbourCoefficient()
 		#self.findCorners()
 		self.tests = {}
 
