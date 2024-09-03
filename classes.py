@@ -65,7 +65,20 @@ def removeChimneys(event):
 	
 	for (x,y) in pads:
 		z = pads[(x,y)]
-		event[x,y,(z+1):] = 0
+		#event[x,y,(z+1):] = 0
+		waveform = event[x,y,z:]
+		waveform = waveform[waveform>0]
+		length = waveform.shape[0]
+		if length < 20:	continue	# The chimney is small, we let it be
+		baseline = numpy.min(waveform)
+		variance = numpy.var(waveform)
+		#threshold = variance/length
+		threshold = numpy.sqrt(variance)
+		#threshold=0
+		#threshold=numpy.infty
+		event[x,y,z:] = numpy.where(event[x,y,z:]-baseline > threshold, event[x,y,z:], 0)
+		
+
 
 AVGPOOL = keras.layers.AveragePooling3D((1,1,8))
 def customBCE(target, pred):
@@ -1022,7 +1035,7 @@ class DataLoader:
 		x17_data = []
 		for _, event in self.loadX17Data(noisy):
 			if preprocessed:
-				removeChimneys(event)
+				if noisy:	removeChimneys(event)
 				x17_data.append( normalise(event) )
 			else:
 				x17_data.append( event )
