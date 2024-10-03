@@ -1197,12 +1197,15 @@ class Plotting:
 
 		return fig, ax1, ax2
 
-	def plot3DToAxis(event :numpy.ndarray, ax, title :str = "", scaleSize = lambda x: 150*x+50, z_cut = (0,200)):
+	def plot3DToAxis(event :numpy.ndarray, ax, title :str = "", z_cut = (0,200)):
 		'''
 		Create 3D plot of @event on specified matplotlib axis @ax.
 		@scaleSize ... Function that scales scatter point size based on the corresponding value.
 		@z_cut ... (z_low, z_max) limits of z axis.
 		'''
+
+		max_E = numpy.max(event)
+		scaleSize = lambda x: 70*x/max_E + 5
 
 		xs, ys, zs = event.nonzero()
 		vals = numpy.array([event[xs[i],ys[i],zs[i]] for i in range(len(xs))])
@@ -1214,7 +1217,7 @@ class Plotting:
 		ax.set_zlim(*z_cut)
 		ax.set_zlabel("$z$")
 		ax.set_title(title)
-		#ax.set_box_aspect((12, 14, 50))
+		ax.set_box_aspect((14, 14, 20))
 		return sctr
 
 	def animation3D(path :str, modelAPI :ModelWrapper, noise_event :numpy.ndarray, are_data_experimental :bool = None):
@@ -1246,3 +1249,54 @@ class Plotting:
 		ax.set_xlabel("z")
 		ax.set_ylabel("#")
 		ax.legend()
+
+	def plot2DAnd3D(event :numpy.ndarray, title :str = "", eps :float = 1e-6):
+		cmap = matplotlib.pyplot.get_cmap("Greys")
+		cmap.set_under('cyan')
+
+		def upsample(matrix):
+			return numpy.repeat(numpy.repeat( numpy.copy(matrix) , 10, axis=0), 11, axis=1)[:100,:120,:200]
+
+		fig, ax = matplotlib.pyplot.subplots(2,2, gridspec_kw={"height_ratios": [20,10], "width_ratios": [10,20]}, layout="constrained")
+		fig.suptitle(title)
+		#for i in [0,1]:
+		#	for j in [0,1]:
+		#		ax[i,j].set_aspect("equal")
+
+		event = numpy.copy(event)
+		event = numpy.where(event > eps, event, 0)
+		event = upsample(event)
+		
+		zx = numpy.sum(event, 1)
+		xz = numpy.transpose(zx)
+		ax[0,0].imshow( xz, origin="lower", cmap=cmap, vmin=1e-6 )
+		#ax[0,0].set_xlabel("x")
+		ax[0,0].set_ylabel("z")
+		ax[0,0].set_title("xz projection")
+
+		yx = numpy.sum(event, 2)
+		xy = numpy.transpose(yx)
+		ax[1,0].imshow( xy, origin="lower", cmap=cmap, vmin=1e-6 )
+		ax[1,0].set_xlabel("x")
+		ax[1,0].set_ylabel("y")
+		ax[1,0].set_title("xy projection")
+		ax[1,0].set_aspect(12/14)
+
+		zy = numpy.sum(event, 0)
+		ax[1,1].imshow( zy, origin="lower", cmap=cmap, vmin=1e-6 )
+		ax[1,1].set_xlabel("z")
+		#ax[1,1].set_ylabel("y")
+		ax[1,1].set_title("zy projection")
+
+		ax[0,1].remove()
+		ax[0,1]=fig.add_subplot(2,2,2,projection='3d')
+
+		Plotting.plot3DToAxis(event, ax[0,1], "3D")
+
+		ax[0,1].tick_params(axis="x", pad=-2)
+		ax[0,1].set_xlabel("x", labelpad=-6)
+		ax[0,1].tick_params(axis="y", pad=-2)
+		ax[0,1].set_ylabel("y", labelpad=-4)
+		
+		#fig.tight_layout()
+		return fig, ax
