@@ -97,6 +97,63 @@ def customBCE(target, pred):
 	return ( tensorflow.math.reduce_mean( keras.losses.binary_crossentropy(target_pool, pred_pool) )
 			+ tensorflow.math.reduce_mean( keras.losses.binary_crossentropy(target, pred) ) )
 
+
+class LinearFit:
+	outlier_threshold = 1
+
+	def getResiduum(self, coord):
+		transformed = (coord[0] - self.mean[0], coord[1] - self.mean[1], coord[2] - self.mean[2])
+		residuum = numpy.sqrt( transformed[0]**2 + transformed[1]**2 + transformed[2]**2 - (transformed[0]*self.direction[0] + transformed[1]*self.direction[1] + transformed[2]*self.direction[2])**2 + 1e-8)
+		return residuum
+
+	def getTotalResiduum(self):
+		total_residuum = 0
+		for coord in self.coords:
+			total_residuum += self.getResiduum(coord)
+		return total_residuum
+
+	def getMeanResiduum(self):
+		return self.getTotalResiduum() / len(self.coords)
+
+	def getOutliers(self):
+		outliers = []
+		for coord in self.coords:
+			residuum = self.getResiduum(coord)
+			if residuum > LinearFit.outlier_threshold:
+				outliers.append(coord)
+		return outliers
+
+	def getMissingTiles(self, noisy_event, in_temporal_space = True):
+		missing_tiles = []
+		xs_noisy, ys_noisy, zs_noisy = numpy.nonzero(noisy_event)
+		if not in_temporal_space:	zs_noisy = zs_noisy / 10
+		coords_noisy = ( list(xs_noisy), list(ys_noisy), list(zs_noisy) )
+		coords_noisy = zip(*coords_noisy)
+		for coord in coords_noisy:
+			if coord not in self.coords:
+				residuum = self.getResiduum(coord)
+				if residuum <= LinearFit.outlier_threshold:
+					missing_tiles.append(coord)
+		return missing_tiles
+
+	def getColinearTiles(self):
+		colin = []
+		for coord in self.coords:
+			residuum = self.getResiduum(coord)
+			if residuum <= LinearFit.outlier_threshold:
+				colin.append(coord)
+		return colin
+
+	def __init__(self, reconstructed_event, in_temporal_space = True):
+		xs, ys, zs = numpy.nonzero(reconstructed_event)
+		if not in_temporal_space:	zs = zs / 10
+		self.coords = ( list(xs), list(ys), list(zs) )
+		self.coords = list(zip(*self.coords))
+		cluster = Cluster(self.coords)
+
+		self.start, self.end, self.mean, self.direction = fitLinePCA(cluster, in_temporal_space=True)	# The conversion to (x,y,z) is already done
+
+
 class Vector:
 	@staticmethod
 	def add(v, w):
@@ -303,7 +360,7 @@ class Cluster:
 					self.effective_length += 1
 					already_visited[coord] = True'''
 		
-		self.energy = 0
+		'''self.energy = 0
 		self.effective_length = 0
 		already_visited = {}
 		for coord in self.coords:
@@ -314,7 +371,30 @@ class Cluster:
 				else:
 					self.effective_length += 1
 					already_visited[coord] = True
+		self.energy_density = self.energy / self.effective_length'''
+
+		self.energy = 0
+		already_visited_xs, already_visited_ys, already_visited_ts = {}, {}, {}
+		for coord in self.coords:
+			self.energy += event[coord]
+			if event[coord] != 0:
+				already_visited_xs[coord[0]] = 1
+				already_visited_ys[coord[1]] = 1
+				already_visited_ts[coord[2]] = 1
+		self.effective_length = numpy.sqrt( len(already_visited_xs)**2 + len(already_visited_ys)**2 + len(already_visited_ts)**2 / 10**2 )
 		self.energy_density = self.energy / self.effective_length
+
+		'''x1, y1, t1, x2, y2, t2 = None, None, None, None, None, None
+		for coord in self.coords:
+			self.energy += event[coord]
+			if x1 is None or coord[0] < x1:	x1 = coord[0]
+			if x2 is None or coord[0] > x2:	x2 = coord[0]
+			if y1 is None or coord[1] < y1:	y1 = coord[1]
+			if y2 is None or coord[1] > y2:	y2 = coord[1]
+			if t1 is None or coord[2] < t1:	t1 = coord[2]
+			if t2 is None or coord[2] > t2:	t2 = coord[2]
+		self.effective_length = numpy.sqrt( (x2-x1+1)**2 + (y2-y1+1)**2 + (t2-t1+1)**2 / 10**2 )
+		self.energy_density = self.energy / self.effective_length'''
 
 	@staticmethod
 	def getGoodFromDataset(dataset, energy_dataset):
@@ -1205,11 +1285,14 @@ class Plotting:
 		'''
 
 		max_E = numpy.max(event)
-		scaleSize = lambda x: 70*x/max_E + 5
+		scaleSize = lambda x: 150*(x/max_E) + 30
 
 		xs, ys, zs = event.nonzero()
+		xs_plot = 10*xs + 5
+		ys_plot = 10*ys + 5
+		zs_plot = zs
 		vals = numpy.array([event[xs[i],ys[i],zs[i]] for i in range(len(xs))])
-		sctr = ax.scatter(xs, ys, zs, c=vals, cmap="plasma", marker="s", s=scaleSize(vals))
+		sctr = ax.scatter(xs_plot, ys_plot, zs_plot, c=vals, cmap="plasma_r", marker="s", s=scaleSize(vals))
 		ax.set_xlim(0, 110)
 		ax.set_xlabel("$x$")
 		ax.set_ylim(0, 130)
@@ -1265,16 +1348,17 @@ class Plotting:
 
 		event = numpy.copy(event)
 		event = numpy.where(event > eps, event, 0)
-		event = upsample(event)
+		event_upsample = numpy.copy(event)
+		event_upsample = upsample(event_upsample)
 		
-		zx = numpy.sum(event, 1)
+		zx = numpy.sum(event_upsample, 1)
 		xz = numpy.transpose(zx)
 		ax[0,0].imshow( xz, origin="lower", cmap=cmap, vmin=1e-6 )
 		#ax[0,0].set_xlabel("x")
 		ax[0,0].set_ylabel("z")
 		ax[0,0].set_title("xz projection")
 
-		yx = numpy.sum(event, 2)
+		yx = numpy.sum(event_upsample, 2)
 		xy = numpy.transpose(yx)
 		ax[1,0].imshow( xy, origin="lower", cmap=cmap, vmin=1e-6 )
 		ax[1,0].set_xlabel("x")
@@ -1282,7 +1366,7 @@ class Plotting:
 		ax[1,0].set_title("xy projection")
 		ax[1,0].set_aspect(12/14)
 
-		zy = numpy.sum(event, 0)
+		zy = numpy.sum(event_upsample, 0)
 		ax[1,1].imshow( zy, origin="lower", cmap=cmap, vmin=1e-6 )
 		ax[1,1].set_xlabel("z")
 		#ax[1,1].set_ylabel("y")
