@@ -1285,7 +1285,7 @@ class Plotting:
 		'''
 
 		max_E = numpy.max(event)
-		scaleSize = lambda x: 150*(x/max_E) + 30
+		scaleSize = lambda x: 80*(x/max_E) + 20
 
 		xs, ys, zs = event.nonzero()
 		xs_plot = 10*xs + 5
@@ -1333,7 +1333,7 @@ class Plotting:
 		ax.set_ylabel("#")
 		ax.legend()
 
-	def plot2DAnd3D(event :numpy.ndarray, title :str = "", eps :float = 1e-6):
+	def plot2DAnd3D(event :numpy.ndarray, title :str = "", eps :float = 1e-4):
 		cmap = matplotlib.pyplot.get_cmap("Greys")
 		cmap.set_under('cyan')
 
@@ -1353,21 +1353,21 @@ class Plotting:
 		
 		zx = numpy.sum(event_upsample, 1)
 		xz = numpy.transpose(zx)
-		ax[0,0].imshow( xz, origin="lower", cmap=cmap, vmin=1e-6 )
+		ax[0,0].imshow( xz, origin="lower", cmap=cmap, vmin=1e-4 )
 		#ax[0,0].set_xlabel("x")
 		ax[0,0].set_ylabel("z")
 		ax[0,0].set_title("xz projection")
 
 		yx = numpy.sum(event_upsample, 2)
 		xy = numpy.transpose(yx)
-		ax[1,0].imshow( xy, origin="lower", cmap=cmap, vmin=1e-6 )
+		ax[1,0].imshow( xy, origin="lower", cmap=cmap, vmin=1e-4 )
 		ax[1,0].set_xlabel("x")
 		ax[1,0].set_ylabel("y")
 		ax[1,0].set_title("xy projection")
 		ax[1,0].set_aspect(12/14)
 
 		zy = numpy.sum(event_upsample, 0)
-		ax[1,1].imshow( zy, origin="lower", cmap=cmap, vmin=1e-6 )
+		ax[1,1].imshow( zy, origin="lower", cmap=cmap, vmin=1e-4 )
 		ax[1,1].set_xlabel("z")
 		#ax[1,1].set_ylabel("y")
 		ax[1,1].set_title("zy projection")
