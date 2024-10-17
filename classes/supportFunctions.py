@@ -2,8 +2,6 @@ from tensorflow import keras
 import numpy
 import tensorflow
 
-SATURATION_THRESHOLD = 800
-
 def normalise(event :numpy.ndarray):
 	'''
 	Linearly map @event to [0,1] interval.
@@ -18,28 +16,30 @@ def removeChimneys(event):
 	'''
 	Remove noisy waveforms in cases where the waveform crosses the saturation threshold.
 	'''
+	SATURATION_THRESHOLD = 800
+
 	xs, ys, zs = numpy.where(event > SATURATION_THRESHOLD)
 	pads = {}
 	for i in range(xs.shape[0]):
 		x, y, z = xs[i], ys[i], zs[i]
 		if (x,y) not in pads:	pads[(x,y)] = z
-		else:	pads[(x,y)] = min(z, pads[(x,y)])	# store the smallest z coordinate where the crossing occured
+		else:	pads[(x,y)] = min(z, pads[(x,y)])	# Store the smallest z coordinate where the saturation occured in given (x,y) pad
 	
 	for (x,y) in pads:
 		z = pads[(x,y)]
-		#event[x,y,(z+1):] = 0
+		#event[x,y,(z+1):] = 0	# The simplest possible cleaning, but let's use something more sophisticated
 		waveform = event[x,y,z:]
 		waveform = waveform[waveform>0]
 		length = waveform.shape[0]
 		if length < 20:	continue	# The chimney is small, we let it be
 		baseline = numpy.min(waveform)
 		variance = numpy.var(waveform)
+		
 		#threshold = variance/length
 		threshold = numpy.sqrt(variance)
-		#threshold=0
-		#threshold=numpy.infty
+		#threshold=0	# removes nothing
+		#threshold=numpy.infty	# removes everything
 		event[x,y,z:] = numpy.where(event[x,y,z:]-baseline > threshold, event[x,y,z:], 0)
-		
 
 
 AVGPOOL = keras.layers.AveragePooling3D((1,1,8))

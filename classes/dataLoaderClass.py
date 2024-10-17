@@ -43,11 +43,10 @@ class DataLoader:
 				E = event[x,y,z]
 				dump_str += str(x) + ", " + str(y) + ", " + str(z) + ", " + str(round(E, round_digits)) + "\n"
 			dump_str = dump_str[:-1]
-			f = open(path + name + ".txt", "w")
-			f.write(dump_str)
-			f.close()
+			with open(path + name + ".txt", "w") as f:
+				f.write(dump_str)
 
-	def importData(self, dir_name = "dump/", names=None):
+	def importData(self, dir_name = "dump/", names=None, order=True):
 		'''
 		Import data previously exported by DataLoader._dumpData_ to a directory (DataLoader.path + @dir_name).  
 		'''
@@ -67,30 +66,38 @@ class DataLoader:
 		
 		if dir_name[-1] != "/":	dir_name += "/"
 		path = self.path + dir_name
-		data = numpy.zeros( (len(os.listdir(path)), 12, 14, 208) )
 
+		# @names are not specified, load the whole directory
 		if names is None:
+			data = numpy.zeros( (len(os.listdir(path)), 12, 14, 208) )
 			names = []
 			i = 0
-			for name in os.listdir(path):
-				f = open(path + name, "r")
-				for line in f.readlines():
-					x, y, z, E = parseLine(line)
-					data[i,x,y,z] = E
-				f.close()
-				names.append(name[:-4])
+			file_names = []
+			if order:
+				for f_int in sorted( [int(val[5:-4]) for val in os.listdir(path)] ):	# Order the data
+					file_names.append("track" + str(f_int) + ".txt")
+			else:
+				file_names = os.listdir(path)
+			for file_name in file_names:
+				with open(path + file_name, "r") as f:
+					for line in f.readlines():
+						x, y, z, E = parseLine(line)
+						data[i,x,y,z] = E
+				names.append(file_name[:-4])
 				i += 1
-			return (data, names)
+			return (names, data)
+		
+		# load only @names in that order
 		else:
+			data = numpy.zeros( (len(names), 12, 14, 208) )
 			i = 0
 			for name in names:
-				f = open(path + name + ".txt", "r")
-				for line in f.readlines():
-					x, y, z, E = parseLine(line)
-					data[i,x,y,z] = E
-				f.close()
+				with open(path + name + ".txt", "r") as f:
+					for line in f.readlines():
+						x, y, z, E = parseLine(line)
+						data[i,x,y,z] = E
 				i += 1
-			return (data, names)
+			return (names, data)
 
 	def fillNameIndexDictionary(self):
 		names = self.getX17Names()
@@ -101,39 +108,15 @@ class DataLoader:
 		'''
 		Return X17 event from its @name.
 		'''
-
 		return self.getBatch(True, noisy, preprocessed=preprocessed)[ self.name_index_dict[name] ]
-		#names, events = self.getX17Names(), self.getBatch(True, noisy, track_type="alltracks", normalising=normalising)
-		#return [event for (n, event) in zip(names, events) if n == name][0]
 
 	def loadX17Data(self, noisy :bool):
 		'''
-		Parse X17 data from txt file into list of tuples (event name, 3D event array).
+		Parse X17 data from txt file into iterator of tuples (name, event).
 		'''
-
-		def parseX17Line(line :str):
-			x = line[:line.index(",")]
-			x = int(x)
-			line = line[line.index(",")+1:]
-			y = line[:line.index(",")]
-			y = int(y)
-			line = line[line.index(",")+1:]
-			z = line[:line.index(",")]
-			z = int(z)
-			line = line[line.index(",")+1:]
-			E = int(line)
-			return (x, y, z, E)
-
-		path = self.path + "x17/" + ("noisy/" if noisy else "clean/")
-
-		for f_int in sorted( [int(val[5:-4]) for val in os.listdir(path)] ):
-			f_name = "track" + str(f_int) + ".txt"
-			file = open(path + f_name, 'r')
-			space = numpy.zeros((12,14,208))
-			for line in file:
-				x, y, z, E = parseX17Line(line)
-				space[x,y,z] = E
-			yield (f_name[:-4], space)
+		path = "x17/" + ("noisy/" if noisy else "clean/")
+		for (name, event) in zip( *self.importData(path, names=None, order=True) ):
+			yield (name, event)
 
 	def dataPairLoad(self, low_id :int, high_id :int):
 		'''
@@ -145,7 +128,6 @@ class DataLoader:
 			numpy.random.shuffle(order)
 			for id in order:
 				signal_batch = numpy.load(self.path + "simulated/clean/" + str(id) + ".npy")
-				#signal_batch = numpy.where(signal_batch > 0.001, 1, 0)	#CLASSIFICATION
 				noise_batch = numpy.load(self.path + "simulated/noisy/" + str(id) + ".npy")
 				
 				for i in range(5000):
@@ -161,23 +143,13 @@ class DataLoader:
 						tensorflow.TensorSpec(shape=(12,14,208,1), dtype=tensorflow.float16))
 					).batch(batch_size).prefetch(10)
 
-	#def getValidationData(self):
-		'''
-		Return tuple (X17_noisy, X17_clean), which is convenient format for Keras Model.fit validation_data argument.
-		'''
-
-		'''noisy, clean = self.getBatch(True, True, track_type="goodtracks"), self.getBatch(True, False, track_type="goodtracks")
-		noisy = numpy.reshape(noisy, (*noisy.shape, 1))
-		clean = numpy.reshape(clean, (*clean.shape, 1))
-		return (noisy, clean)'''
-
 	def datasetExists(self, noisy :bool, preprocessed :bool):
 		return (noisy, preprocessed) in self.existing_experimental_datasets
 	
 	def getDatasetFromDictionary(self, noisy :bool, preprocessed :bool):
 		return self.existing_experimental_datasets[(noisy, preprocessed)]
 
-	def addDatasetToDictionary(self, dataset :numpy.array, noisy :bool, preprocessed :bool):
+	def addDatasetToDictionary(self, dataset :numpy.ndarray, noisy :bool, preprocessed :bool):
 		self.existing_experimental_datasets[(noisy, preprocessed)] = dataset
 
 	def getBatch(self, experimental :bool = True, noisy :bool = True, file_id :int = 0, preprocessed :bool = True):
@@ -211,7 +183,7 @@ class DataLoader:
 		'''
 		Return X17 track names. 
 		'''
-
 		names = []
-		for (name, _) in self.loadX17Data(False):	names.append(name)
+		for (name, _) in self.loadX17Data(False):	
+			names.append(name)
 		return names
