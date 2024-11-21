@@ -196,7 +196,7 @@ class Plotting:
 		ax.set_ylabel("#")
 		ax.legend()
 
-	def plot2DAnd3D(event :numpy.ndarray, title :str = "", eps :float = 1e-4):
+	def plot2DAnd3D(event :numpy.ndarray, title :str = "", eps :float = 1e-6, azimuth :float = None, elev :float = None):
 		cmap = matplotlib.pyplot.get_cmap("Greys")
 		cmap.set_under('cyan')
 
@@ -239,6 +239,13 @@ class Plotting:
 		ax[0,1]=fig.add_subplot(2,2,2,projection='3d')
 
 		Plotting.plot3DToAxis(event, ax[0,1], "3D")
+		if azimuth is not None and elev is None:
+			ax[0,1].view_init(azim=azimuth)
+		if elev is not None and azimuth is None:
+			ax[0,1].view_init(elev=elev)
+		if azimuth is not None and elev is not None:
+			ax[0,1].view_init(azim=azimuth, elev=elev)
+		
 
 		ax[0,1].tick_params(axis="x", pad=-2)
 		ax[0,1].set_xlabel("x", labelpad=-6)
