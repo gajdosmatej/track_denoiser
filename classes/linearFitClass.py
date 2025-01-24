@@ -1,24 +1,29 @@
 import numpy
 from classes import clusterClass
 
-def fitLinePCA(cluster, in_temporal_space = True):
+def fitLinePCA(cluster, in_temporal_space = True, weights=None):
 	'''
 	Take a list of 3D coordinates and return PCA line fit in the form of (start, end, directionUnitVector, meanPoint).
 	@in_temporal_space (bool) ... If False, convert @cluster from (x,y,t) space to (x,y,z)
 	'''
 
 	coords = cluster.coords
+	
 	if not in_temporal_space:
-		coords = [(x,y,t/10) for (x,y,t) in coords]
+		coords = [(x,5*y/6,t/15) for (x,y,t) in coords]
 	
 	data = numpy.array(coords, dtype=numpy.float64)
-	mean = [numpy.mean(data[:,i]) for i in range(3)]
 
-	#scaled_covariance_matrix = numpy.transpose(data) @ data
-	#U, D, V = numpy.linalg.svd(scaled_covariance_matrix)
+	mean, scaled_covariance_matrix = None, None
+	if weights is None:
+		mean = [numpy.mean(data[:,i]) for i in range(3)]
+		scaled_covariance_matrix = numpy.transpose(data-mean) @ (data-mean)
+	else:
+		num_samples = len(coords)
+		mean = [ sum(weights[j] * data[j,i] for j in range(num_samples)) / sum(w for w in weights) for i in range(3) ]
+		scaled_covariance_matrix = numpy.transpose(data-mean) @ numpy.diag(weights) @ (data-mean)
 
-	#From SVD it follows that for data = UDV*, we have Var = data* data = VD*U* UDV* = VD^2 V*, so the right factor of @data and @scaled_covariance_matrix is the same
-	_, _, V = numpy.linalg.svd(data - mean)
+	_, _, V = numpy.linalg.svd(scaled_covariance_matrix)
 	direction = V[0]
 
 	a, b = numpy.min(data[:,2]), numpy.max(data[:,2])
@@ -64,11 +69,16 @@ class LinearFit:
 			if residuum > LinearFit.outlier_threshold:
 				outliers.append(coord)
 		return outliers
+	
+	def getRatioOutliers(self):
+		return len(self.getOutliers()) / len(self.coords)
 
 	def getMissingTiles(self, noisy_event, in_temporal_space = True):
 		missing_tiles = []
 		xs_noisy, ys_noisy, zs_noisy = numpy.nonzero(noisy_event)
-		if not in_temporal_space:	zs_noisy = zs_noisy / 10
+		if not in_temporal_space:
+			ys_noisy = 5/6 * ys_noisy
+			zs_noisy = zs_noisy / 15
 		coords_noisy = ( list(xs_noisy), list(ys_noisy), list(zs_noisy) )
 		coords_noisy = zip(*coords_noisy)
 		for coord in coords_noisy:
@@ -85,12 +95,27 @@ class LinearFit:
 			if residuum <= LinearFit.outlier_threshold:
 				colin.append(coord)
 		return colin
+	
+	def changeCoordinates(self, event, in_temporal_space = True):
+		xs, ys, zs = numpy.nonzero(event)
+		if not in_temporal_space:	
+			ys = 5/6 * ys
+			zs = zs / 15
+		self.coords = ( list(xs), list(ys), list(zs) )
+		self.coords = list(zip(*self.coords))
 
-	def __init__(self, reconstructed_event, in_temporal_space = True):
-		xs, ys, zs = numpy.nonzero(reconstructed_event)
-		if not in_temporal_space:	zs = zs / 10
+	def __init__(self, event, in_temporal_space = True, use_weights = False):
+		xs, ys, zs = numpy.nonzero(event)
+		
+		weights = None
+		if use_weights:
+			weights = event[xs, ys, zs]
+
+		if not in_temporal_space:
+			ys = 5/6 * ys
+			zs = zs / 15
 		self.coords = ( list(xs), list(ys), list(zs) )
 		self.coords = list(zip(*self.coords))
 		cluster = clusterClass.Cluster(self.coords)
 
-		self.start, self.end, self.mean, self.direction = fitLinePCA(cluster, in_temporal_space=True)	# The conversion to (x,y,z) is already done
+		self.start, self.end, self.mean, self.direction = fitLinePCA(cluster, in_temporal_space=True, weights=weights)	# The conversion to (x,y,z) is already done
