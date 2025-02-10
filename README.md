@@ -14,6 +14,7 @@ Additionally to these files, the data directories are necessary, with the follow
       - data/x17/noisy/trackTRACKNUMBER.txt
     - data/x17/gauge_backgrounds
       - data/x17/gauge_backgrounds/trackTRACKNUMBER.txt
+
 The data for data/simulated/ are generated using track_generator.py, each .npy file contains 5000 event arrays. The experimental data are available upon request and each .txt file contains one event, describing the array through rows of the form $(x,y,z,E)$, where $E$ stands for the amplitude; coordinates not present in any row are thought as describing zero amplitude. data/x17/gauge_backgrounds contain measured events with tracks removed, so that only noisy patterns are present which is one way to generate noise in track_generator.py.
 
 The script track_generator.py is used to generate clean and corresponding noisy events. It is used as 
