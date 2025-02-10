@@ -35,8 +35,6 @@ class Cluster:
 			if xy not in visited_xy:
 				pad_len += 1
 				visited_xy[xy] = 1
-			else:
-				pad_len += self.z_scale_factor
 		return pad_len
 
 	@staticmethod

@@ -74,8 +74,8 @@ class DataLoader:
 			i = 0
 			file_names = []
 			if order:
-				for f_int in sorted( [int(val[5:-4]) for val in os.listdir(path)] ):	# Order the data
-					file_names.append("track" + str(f_int) + ".txt")
+				for num in sorted( [val[5:-4] for val in os.listdir(path)] ):	# Order the data
+					file_names.append("track" + num + ".txt")
 			else:
 				file_names = os.listdir(path)
 			for file_name in file_names:

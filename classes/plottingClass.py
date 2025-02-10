@@ -140,22 +140,40 @@ class Plotting:
 
 		return fig, ax1, ax2
 
-	def plot3DToAxis(event :numpy.ndarray, ax, title :str = "", z_cut = (0,200)):
+	def plot3DToAxis(event :numpy.ndarray, ax, title :str = "", z_cut = (0,200), cmap="copper_r"):
 		'''
 		Create 3D plot of @event on specified matplotlib axis @ax.
 		@scaleSize ... Function that scales scatter point size based on the corresponding value.
 		@z_cut ... (z_low, z_max) limits of z axis.
 		'''
 
+		def getOffset(val, max_E):
+			rel = val/max_E
+			return (5 - int(numpy.sqrt(30*rel)) )
+
 		max_E = numpy.max(event)
-		scaleSize = lambda x: 80*(x/max_E) + 20
+		#scaleSize = lambda x: 0.3*(20*(x/max_E) + 20)
+		scaleSize = lambda x: 6
 
 		xs, ys, zs = event.nonzero()
-		xs_plot = 10*xs + 5
-		ys_plot = 10*ys + 5
-		zs_plot = zs
-		vals = numpy.array([event[xs[i],ys[i],zs[i]] for i in range(len(xs))])
-		sctr = ax.scatter(xs_plot, ys_plot, zs_plot, c=vals, cmap="plasma_r", marker="s", s=scaleSize(vals))
+		vals = [event[xs[i],ys[i],zs[i]] for i in range(len(xs))]
+
+		xs_plot, ys_plot, zs_plot, vals_plot = [], [], [], []
+		for n in range(len(xs)):
+			val = vals[n]
+			offset = getOffset(val, max_E)
+			for i in range(offset,12-offset):
+				for j in range(offset,14-offset):
+					xs_plot.append(10*xs[n] + i)
+					ys_plot.append(10*ys[n] + j)
+					zs_plot.append(zs[n])
+					vals_plot.append(val)
+		#xs_plot = 10*xs + 5
+		#ys_plot = 10*ys + 5
+		#zs_plot = zs
+		
+
+		sctr = ax.scatter(xs_plot, ys_plot, zs_plot, c=vals_plot, cmap = matplotlib.pyplot.get_cmap(cmap), marker="s", edgecolors="black", linewidths=0.1, s=scaleSize(vals_plot), vmin=0)
 		ax.set_xlim(0, 110)
 		ax.set_xlabel("$x$")
 		ax.set_ylim(0, 130)
@@ -180,6 +198,7 @@ class Plotting:
 		anim = matplotlib.animation.FuncAnimation(fig, func=run, frames=360, interval=20, blit=False)
 		anim.save(path, fps=30, dpi=200, writer="pillow")
 
+
 	def plotTileDistribution(data :numpy.ndarray, modelAPI :modelWrapperClass.ModelWrapper):
 		'''
 		Create histogram of tile z coordinates distribution 
@@ -195,6 +214,37 @@ class Plotting:
 		ax.set_xlabel("z")
 		ax.set_ylabel("#")
 		ax.legend()
+
+
+	def plot3D(event :numpy.ndarray, title :str = "", eps :float = 1e-6, azimuth :float = None, elev :float = None, cmap="copper_r", z_cut=(0,200)):
+		
+		def upsample(matrix):
+			return numpy.repeat(numpy.repeat( numpy.copy(matrix) , 10, axis=0), 11, axis=1)[:100,:120,:200]
+
+		event = numpy.copy(event)
+		event = numpy.where(event > eps, event, 0)
+		event_upsample = numpy.copy(event)
+		event_upsample = upsample(event_upsample)
+		
+		fig, ax = matplotlib.pyplot.subplots(1)
+		ax.remove()
+		ax = fig.add_subplot(1,1,1,projection='3d')
+
+		Plotting.plot3DToAxis(event, ax, title, z_cut=z_cut, cmap=cmap)
+		if azimuth is not None and elev is None:
+			ax.view_init(azim=azimuth)
+		if elev is not None and azimuth is None:
+			ax.view_init(elev=elev)
+		if azimuth is not None and elev is not None:
+			ax.view_init(azim=azimuth, elev=elev)
+		
+		ax.tick_params(axis="x", pad=-2)
+		ax.set_xlabel("x (mm)", labelpad=-6)
+		ax.tick_params(axis="y", pad=-2)
+		ax.set_ylabel("y (mm)", labelpad=-4)
+		ax.set_zlabel("z (mm)")
+		#fig.tight_layout()
+		return fig, ax
 
 	def plot2DAnd3D(event :numpy.ndarray, title :str = "", eps :float = 1e-6, azimuth :float = None, elev :float = None):
 		cmap = matplotlib.pyplot.get_cmap("Greys")
