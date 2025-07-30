@@ -1,6 +1,8 @@
 # track_denoiser
 This repository forms the codebase for the paper M. Gajdoš, H.N. da Luz, G.G.A. de Souza, M. Bregant, *TPC track denoising and recognition using convolutional neural networks*, CPC (2025), https://doi.org/10.1016/j.cpc.2025.109608.
 
+The `main` branch is consistent with the information given in the paper. For further active development, see the branch `after_paper`.
+
 The dependencies are Python with numpy, matplotlib and tensorflow with keras. Additionally to the files in this repository, the data directories are necessary, with the following structure:
 - data/ (the *root data directory*)
   - data/simulated/
