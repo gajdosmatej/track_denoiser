@@ -62,3 +62,50 @@ class ModelWrapper:
 		'''
 		
 		return numpy.where(raw_reconstruction > self.threshold, 1, 0)
+
+
+def getPaperModel():
+	'''
+	Return the model (untrained, only architecture) described in the paper.
+	'''
+
+	inputs = keras.layers.Input((12,14,208,1))
+
+	support0 = keras.layers.Conv3D(padding="same", strides=1, kernel_size=(3,3,3), filters=2, activation="relu")(inputs)
+	support0 = keras.layers.Conv3D(padding="same", strides=1, kernel_size=(3,3,3), filters=2, activation="relu")(support0)
+
+	pool1 = keras.layers.AveragePooling3D((1,1,2))(inputs)
+	support1 = keras.layers.Conv3D(padding="same", strides=1, kernel_size=(3,3,3), filters=2, activation="relu")(pool1)
+	support1 = keras.layers.Conv3D(padding="same", strides=1, kernel_size=(3,3,3), filters=2, activation="relu")(support1)
+
+	pool2 = keras.layers.AveragePooling3D((1,1,2))(pool1)
+	support2 = keras.layers.Conv3D(padding="same", strides=1, kernel_size=(3,3,3), filters=2, activation="relu")(pool2)
+	support2 = keras.layers.Conv3D(padding="same", strides=1, kernel_size=(3,3,3), filters=2, activation="relu")(support2)
+
+	x = keras.layers.Conv3D(padding="same", strides=1, kernel_size=(3,3,3), filters=2, activation="relu")(inputs)
+	x = keras.layers.AveragePooling3D((1,1,2))(x)
+	x = keras.layers.Conv3D(padding="same", strides=1, kernel_size=(3,3,3), filters=3, activation="relu")(x)
+	x = keras.layers.AveragePooling3D((1,1,2))(x)
+	x = keras.layers.Conv3D(padding="same", strides=1, kernel_size=(3,3,3), filters=4, activation="relu")(x)
+	x = keras.layers.AveragePooling3D((1,1,2))(x)
+
+	x = keras.layers.Conv3D(padding="same", strides=1, kernel_size=(3,3,3), filters=4, activation="relu")(x)
+	x = keras.layers.Conv3D(padding="same", strides=1, kernel_size=(3,3,3), filters=4, activation="relu")(x)
+
+	x = keras.layers.UpSampling3D((1,1,2))(x)
+	x = keras.layers.Concatenate()([x,support2])
+	x = keras.layers.Conv3D(padding="same", strides=(1,1,1), kernel_size=(3,3,3), filters=3, activation="relu")(x)
+	x = keras.layers.Conv3D(padding="same", strides=(1,1,1), kernel_size=(3,3,3), filters=3, activation="relu")(x)
+
+	x = keras.layers.UpSampling3D((1,1,2))(x)
+	x = keras.layers.Concatenate()([x,support1])
+	x = keras.layers.Conv3D(padding="same", strides=1, kernel_size=(3,3,3), filters=3, activation="relu")(x)
+	x = keras.layers.Conv3D(padding="same", strides=(1,1,1), kernel_size=(3,3,3), filters=3, activation="relu")(x)
+
+	x = keras.layers.UpSampling3D((1,1,2))(x)
+	x = keras.layers.Concatenate()([x,support0])
+	x = keras.layers.Conv3D(padding="same", strides=(1,1,1), kernel_size=(3,3,3), filters=3, activation="relu")(x)
+	x = keras.layers.Conv3D(padding="same", strides=(1,1,1), kernel_size=(3,3,3), filters=3, activation="relu")(x)
+	x = keras.layers.Conv3D(padding="same", strides=(1,1,1), kernel_size=(3,3,3), filters=3, activation="relu")(x)
+	outputs = keras.layers.Conv3D(padding="same", strides=(1,1,1), kernel_size=(3,3,3), filters=1, activation="sigmoid")(x)
+	return keras.Model(inputs=inputs, outputs=outputs)
