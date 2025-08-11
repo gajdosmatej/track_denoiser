@@ -16,6 +16,13 @@ The dependencies are Python with numpy, matplotlib and tensorflow with keras. Ad
     - data/x17/gauge_backgrounds
       - data/x17/gauge_backgrounds/trackTRACKNUMBER.txt
 
+## Setup on Linux
+1. **Create Python virtual environment:** `python3 -m venv .venv` (or possibly just `python` instead of `python3`, depending on the Linux distribution)
+2. **Activate the virtual environment:** `source .venv/bin/activate`. This step needs to be applied each time when working with this project.
+3. **Install dependencies:** `pip install -r dependencies.txt`.
+4. **Create data folders:** If you have access to UTEF-X17 MetaCentrum storage, use the bash script `init_structure_data.sh`, which will also download the measured cosmics data. Otherwise, use the script `init_structure.sh` to construct the correct data folders tree.
+
+## Misc
 The data for data/simulated/ are generated using track_generator.py, each .npy file contains 5000 event arrays. The experimental data are available upon request and each .txt file contains one event, describing the array through rows of the form $(x,y,z,E)$, where $E$ stands for the amplitude; coordinates not present in any row are thought as describing zero amplitude. data/x17/gauge_backgrounds contain measured events with tracks removed, so that only noisy patterns are present which is one way to generate noise in track_generator.py. It is, however, entirely possible to generate only synthetic noise by changing `USE_MEASURED_NOISE` in track_generator.py to `0`.
 
 The script track_generator.py is used to generate clean and corresponding noisy events. It is used as 
