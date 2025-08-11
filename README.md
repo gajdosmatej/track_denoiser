@@ -7,6 +7,9 @@ This repository forms the codebase for the paper M. Gajdoš, H.N. da Luz, G.G.A.
 3. **Install dependencies:** `pip install -r dependencies.txt`.
 4. **Create data folders:** If you have access to UTEF-X17 MetaCentrum storage, use the bash script `init_structure_data.sh`, which will also download the measured cosmics data. Otherwise, use the script `init_structure.sh` to construct the correct data folders tree.
 
+## Experimental data
+The experimental data are available upon request. Each event is stored in its own `.txt` file, having rows of the form $(x,y,t,E)$, where $E$ stands for the amplitude; coordinates not present in any row are thought as describing zero amplitude. `data/x17/gauge_backgrounds` contain measured events with tracks removed, so that only noisy patterns are present.
+
 ## Analysis using the paper neural network
 The Jupyter notebook `analysis.ipynb` contains various views, computations and plots regarding the data and neural network results. Most of the plots from the paper should be possible to recreate in this notebook, provided the experimental data are available.
 
@@ -19,17 +22,11 @@ In order to use measured noise masks, the experimental data in `data/x17/gauge_b
 
 ## Neural network training
 TODO
-
-## Pretrained neural network
+### Cluster
 TODO
 
-## Misc
-The data for data/simulated/ are generated using track_generator.py, each .npy file contains 5000 event arrays. The experimental data are available upon request and each .txt file contains one event, describing the array through rows of the form $(x,y,z,E)$, where $E$ stands for the amplitude; coordinates not present in any row are thought as describing zero amplitude. data/x17/gauge_backgrounds contain measured events with tracks removed, so that only noisy patterns are present which is one way to generate noise in track_generator.py. It is, however, entirely possible to generate only synthetic noise by changing `USE_MEASURED_NOISE` in track_generator.py to `0`.
-
-The script track_generator.py is used to generate clean and corresponding noisy events. It is used as 
-`python track_generator.py -n DESIRED_NUMBER_OF_BATCHES -p PATH_TO_ROOT_DATA_DIRECTORY -l 0/1`.
-Flag `-l 0` generates data for denoising (i.e. ground truth are 3D tensors of clean events), whereas `-l 1` generates data for labeling (ground truth are labels 0/1, former for track present in the noisy event, latter for track not present in the noisy event; this feature is currently not being used, but it is available). Each batch contains 5000 event pairs.
-
-Classes and support functions are stored in classes/ and used for plotting, NN model training, convenient data IO, clusterisation and more. 
-
-Jupyter notebook analysis.ipynb contains some of the more interesting parts of the whole denoising process and its analysis.
+## Pretrained neural network
+The pretrained neural network, whose architecture is described in the paper, is stored in several formats in `models/3D/`: 
+- The folder `M1/` is the original saved version using the TensorFlow's `SavedModel` format, which is not supported anymore in Keras 3. 
+- The files `M1.h5` and `M1.keras` can be both used to load the model even in Keras 3.
+- The file `M1.weights.h5` contains the exported weights of the neural network. In order to load these, the network's architecture needs to be specified in the code, but it can be conveniently retrieved using `getPaperModel()` in `classes/modelWrapperClass.py`.
