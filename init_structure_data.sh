@@ -1,8 +1,11 @@
 mkdir data
 mkdir data/simulated
+mkdir data/labeling
 mkdir data/x17
 mkdir data/simulated/clean
 mkdir data/simulated/noisy
+mkdir data/labeling/clean
+mkdir data/labeling/noisy
 echo "#> Data directory structure created. Data will now be downloaded from MetaCentrum."
 cd ./data/x17/
 read -p "#> Enter your MetaCentrum username: " username

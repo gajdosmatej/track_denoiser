@@ -1,12 +1,10 @@
 import numpy
-import matplotlib.pyplot
-import time
+import tqdm
 import os
 import sys
-from classes import DataLoader
+from classes.dataLoaderClass import DataLoader
 
 
-USE_MEASURED_NOISE = 2	# 0 => only generated, 1 => only measured, 2 => mixed 1:1
 BATCH_SIZE = 5000
 SHAPE = (12,14,208)
 PROBABILITY_TILE_NOISY = 0.0005
@@ -15,7 +13,7 @@ NOISE_LENGTH_LAMBDA = 6
 Z_BOUNDS = (50,170)
 TRACK_THRESHOLD = 3	# minimal number of pads for a valid track
 DATA_LOADER = DataLoader("./data")
-BACKGROUNDS, _ = DATA_LOADER.importData("x17/gauge_backgrounds")[:100]
+_, BACKGROUNDS = DATA_LOADER.importData("x17/gauge_backgrounds")[:100]
 
 
 def getWaveformNoiseTileCDF():
@@ -207,12 +205,11 @@ def generateBatch(just_labels, use_measured_noise):
 	else:
 		batch_clean = numpy.zeros( (BATCH_SIZE, *SHAPE), dtype=numpy.float16 )
 
-	for i in range(BATCH_SIZE):
+	for i in tqdm.tqdm( range(BATCH_SIZE) ):
 		if just_labels:
 			batch_clean[i] = generateEventLabeling(batch_noise[i], use_measured_noise)
 		else:
 			generateEventDenoising(batch_noise[i], batch_clean[i], use_measured_noise)
-		if i % 250 == 0:	print(i, "generated")
 	return batch_noise, batch_clean
 
 
@@ -224,76 +221,41 @@ def generateAndDump(root_path :str, batch_number :int, just_labels :bool, use_me
 	increment = len(os.listdir(root_path + "noisy/"))	#some datafiles might be already in the directory, this ensures they will not be overwritten
 	for i in range(batch_number):
 		batch_noise, batch_clean = generateBatch(just_labels, use_measured_noise)
-		print("Saving " + str(i) + ". batch from " + str(batch_number))
+		print("Saving " + str(i+1) + ". batch from " + str(batch_number))
 		numpy.save(root_path + "noisy/" + str(increment+i) + ".npy", batch_noise)
 		numpy.save(root_path + "clean/" + str(increment+i) + ".npy", batch_clean)
 
 
-def showExample(event_noise, event_clean):
-	'''
-	Plot and show a generated event.
-	'''
-
-	x_labels = ["z","z","y"]
-	y_labels = ["y","x","x"]
-	cmap = matplotlib.pyplot.get_cmap("Greys")
-	cmap.set_under('cyan')
-
-	event_noise = numpy.repeat( numpy.repeat(event_noise, 10, axis=0), 10, axis=1 )
-	event_clean = numpy.repeat( numpy.repeat(event_clean, 10, axis=0), 10, axis=1 )
-
-	#aspects = [(10/14) / (8/200), (10/12) / (8/200), (10/12)/ (10/14)]
-
-	fig, ax = matplotlib.pyplot.subplots(3,2)
-	for i in range(3):
-		ax[i,0].imshow(numpy.sum(event_noise, i), cmap=cmap ,vmin=0.00001)
-		ax[i,0].set_title("Noisy")
-		ax[i,1].imshow(numpy.sum(event_clean, i), cmap=cmap ,vmin=0.00001)
-		ax[i,1].set_title("Clean")
-		for is_noisy in [0,1]:
-			ax[i,is_noisy].set_xlabel(x_labels[i])
-			ax[i,is_noisy].set_ylabel(y_labels[i])
-	matplotlib.pyplot.show()
-
 
 if __name__ == "__main__":
 	# Flags
-	batch_num, path, labeling_only  = None, None, None
-	bool_n, bool_p, bool_l = False, False, False
-	only_show = False
+	batch_num, use_measured_noise, labeling_only  = None, None, None
+	bool_n, bool_m, bool_l = False, False, False
 
 	for arg in sys.argv[1:]:
 		if bool_n:
 			batch_num = int(float(arg))
 			bool_n = False
-		elif bool_p:
-			path = arg
-			bool_p = False
 		elif bool_l:
 			labeling_only = bool(int(arg))
 			bool_l = False
+		elif bool_m:
+			use_measured_noise = int(float(arg))
+			bool_m = False
 		elif arg == "-h":
 			print("-h ... list flags")
 			print("-n <integer> ... number of generated batches (" + str(BATCH_SIZE) + " events/batch)")
-			print("-p <path> ... path to data directory")
 			print("-l <0/1> ... whether the generated data are used for denoising (0) or labeling (1)")
-			print("-s ... only show a generated example")
+			print("-m <0/1/2> ... whether the noise is synthetised or noisy measured masks are used. 0 = only synthetised, 1 = only masks, 2 = both")
 			exit()
 		elif arg == "-n":	bool_n = True
-		elif arg == "-p":	bool_p = True
-		elif arg == "-s":	only_show = True
 		elif arg == "-l":	bool_l = True
+		elif arg == "-m":	bool_m = True
 
-	# Just plotting if flag -s is present
-	if only_show:
-		noise, clean = numpy.zeros((12,14,208), dtype=numpy.float16), numpy.zeros((12,14,208), dtype=numpy.float16)
-		generateEventDenoising(noise, clean, USE_MEASURED_NOISE)
-		showExample(noise, clean)
-
-	elif batch_num == None or path == None or labeling_only == None:
+	if batch_num == None or labeling_only == None or use_measured_noise == None:
 		print("Specify all the parameters (flag -h shows their list)")
 	else:
 		# Generate and save data
-		path += ("" if path[-1] == "/" else "/")
+		path = "data/"
 		path += ("labeling/" if labeling_only else "simulated/")
-		generateAndDump(path, batch_num, labeling_only, USE_MEASURED_NOISE)
+		generateAndDump(path, batch_num, labeling_only, use_measured_noise)
